@@ -1,0 +1,36 @@
+# === Núcleo do Flask (backend e templating) ===
+Flask==3.1.0
+Jinja2==3.1.6
+Werkzeug==3.1.3
+itsdangerous==2.2.0
+MarkupSafe==3.0.2
+
+# === Visualização e dados ===
+matplotlib==3.10.1
+pandas==2.2.3
+numpy==1.26.4
+yfinance==0.2.54
+plotly==5.19.0
+
+# === Inteligência Artificial e análises ===
+openai==1.65.4
+textblob==0.18.0
+prophet==1.1.5
+apscheduler==3.10.1
+
+# === Banco de dados e infraestrutura ===
+peewee==3.17.9
+python-dotenv==1.0.1
+pyTelegramBotAPI==4.26.0
+requests==2.31.0  # ✅ adicionado para uso da API Twelve Data
+
+# === PDF rendering ===
+weasyprint==53.0
+
+# === Machine Learning (⚠️ instale scikit-learn via conda) ===
+# conda install scikit-learn
+# scikit-learn==1.3.2
+
+# === TensorFlow para Mac M1/M2 ===
+# Instale manualmente com:
+# pip install tensorflow-macos tensorflow-metal

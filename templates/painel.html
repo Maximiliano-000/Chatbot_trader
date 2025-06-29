@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Painel do Usuário – AnaliZ</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f9f9f9;
+      padding: 2rem;
+      text-align: center;
+      color: #003b50;
+    }
+    .painel {
+      max-width: 600px;
+      margin: auto;
+      background: white;
+      border-radius: 12px;
+      padding: 2rem;
+      border: 1px solid #ccc;
+      box-shadow: 0 0 20px rgba(0,0,0,0.05);
+    }
+    h2 {
+      margin-top: 0;
+    }
+    .btns {
+      margin-top: 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: center;
+    }
+    .btn {
+      text-decoration: none;
+      padding: 0.8rem 1.5rem;
+      background: #003b50;
+      color: white;
+      border-radius: 8px;
+      font-weight: 500;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <div class="painel">
+    <h2>🔧 Painel do Usuário</h2>
+    {% if session['usuario'] %}
+    <p><strong>ID:</strong> {{ session['usuario']['id'] }}<br>
+       <strong>Plano:</strong> {{ session['usuario']['plano']|capitalize }}<br>
+       <strong>Créditos:</strong> {{ session['usuario']['creditos'] }}</p>
+    {% else %}
+    <p style="color: red;">Você não está logado.</p>
+    {% endif %}
+
+    <div class="btns">
+      <a class="btn" href="/relatorio?ticker=WEGE3">📊 Acessar Relatório</a>
+      <a class="btn" href="/planos">💼 Ver Planos</a>
+      <a class="btn" href="/comprar_credito">💳 Comprar Crédito</a>
+      <a class="btn" href="/meu_perfil">👤 Meu Perfil</a>
+      <a class="btn" href="/logout">🚪 Sair</a>
+    </div>
+  </div>
+</body>
+</html>

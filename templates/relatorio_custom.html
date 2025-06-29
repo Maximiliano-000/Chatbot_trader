@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AnaliZ – Previsão {{ periodo.upper() }}</title>
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <link rel="icon" href="{{ url_for('static', filename='icon.png') }}">
+  <meta name="theme-color" content="#0f0f10">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    body {
+      background-color: #0f0f10;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', Roboto, sans-serif;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 850px;
+      margin: auto;
+      background-color: #1a1b1f;
+      padding: 2.5rem;
+      border-radius: 18px;
+      box-shadow: 0 0 40px rgba(0, 224, 255, 0.12);
+    }
+    h1, h2 {
+      color: #00e0ff;
+      font-weight: bold;
+      text-align: center;
+    }
+    .grafico {
+      border-radius: 12px;
+      width: 100%;
+      margin-top: 1rem;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    }
+    .section {
+      margin-top: 2rem;
+    }
+    .card, .card-lstm {
+      background-color: #23242a;
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+      color: #ffffff;
+    }
+    .card {
+      border-left: 4px solid #00e0ff;
+    }
+    .card-lstm {
+      border-left: 4px solid #9b59b6;
+    }
+    .card ul, .card-lstm ul {
+      list-style-type: none;
+      padding: 0;
+      margin: 0;
+    }
+    .card-short {
+      background-color: #1f1a1a; /* tom avermelhado discreto */
+    }
+    .card-long {
+      background-color: #1a1f1d; /* tom esverdeado escuro discreto */
+    }
+    .card ul li::before, .card-lstm ul li::before {
+      content: "🔹 ";
+      margin-right: 0.5rem;
+    }
+    .card-aviso {
+      background-color: #3a2f00;
+      border-left: 4px solid #ffc107;
+      color: #ffd369;
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      margin-top: 1.5rem;
+    }
+    footer {
+      font-size: 0.85rem;
+      color: #888;
+      text-align: center;
+      margin-top: 3rem;
+    }
+    .card-micro {
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      margin-top: 1.5rem;
+      color: #ffffff;
+      font-size: 1.05em;
+      line-height: 1.6;
+      box-shadow: 0 0 12px rgba(0, 0, 0, 0.25);
+      font-weight: 500;
+      text-align: left;
+    }
+
+    .card-micro.alta {
+      background: linear-gradient(to right, #2563eb, #1e3a8a);
+      border-left: 4px solid #60a5fa;
+    }
+
+    .card-micro.queda {
+      background: linear-gradient(to right, #dc2626, #7f1d1d);
+      border-left: 4px solid #f87171;
+    }
+
+    .card-micro.estavel {
+      background: linear-gradient(to right, #374151, #1f2937);
+      border-left: 4px solid #9ca3af;
+    }
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 12px rgba(255,255,255,0.1); }
+      50%  { box-shadow: 0 0 20px rgba(255,255,255,0.3); }
+      100% { box-shadow: 0 0 12px rgba(255,255,255,0.1); }
+    }
+
+    .card-micro.alta,
+    .card-micro.queda {
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .card,
+    .card-lstm,
+    .card-short,
+    .card-long,
+    .card-aviso,
+    .card-micro {
+      margin-left: 0;
+      margin-right: 0;
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div style="text-align: center;">
+      <img src="{{ url_for('static', filename='logo_banner.png') }}" style="max-width: 100%; max-height: 120px;">
+      <h1>🔮 Relatório Customizado – {{ ticker }} ({{ periodo.upper() }})</h1>
+      <p style="font-size: 0.9rem; color: #aaa;">Gerado em: {{ datahora }}</p>
+    </div>
+
+    {% if fonte == "twelvedata" %}
+      <div style="color:#22d3ee; font-size: 0.85em; margin-top: 10px;">
+        ✅ Dados obtidos em tempo real via <strong>Twelve Data</strong> – {{ quantidade_candles }} candles no intervalo <strong>{{ intervalo_utilizado }}</strong>.
+      </div>
+    {% endif %}
+
+    {% if quantidade_candles %}
+      <p style="color: #9ca3af; font-size: 0.9em;">
+        ⏱️ Dados disponíveis: {{ quantidade_candles }} candles no intervalo utilizado.
+      </p>
+    {% endif %}
+
+    {% if mensagem_intervalo %}
+      <div style="background-color: #fef3c7; color: #78350f; padding: 12px; border-radius: 8px; margin-top: 20px;">
+        ⚠️ {{ mensagem_intervalo }}
+      </div>
+    {% endif %}
+
+    {% if erro_dados %}
+      <div class="alert" style="background-color: #ffe4b5; color: #111; padding: 16px; border-radius: 10px; margin-top: 20px;">
+        ⚠️ <strong>Dados insuficientes:</strong> Não foi possível gerar a análise técnica para este ativo/período.<br>
+        Por favor, tente outro intervalo de tempo ou verifique a disponibilidade do ativo no mercado.
+      </div>
+    {% endif %}
+
+    {% if ia_falhou %}
+    <div class="card-aviso">
+      ⚠️ <strong>Nota:</strong> A IA não conseguiu gerar uma resposta completa neste momento.<br>
+      O conteúdo técnico está disponível, mas a análise textual foi substituída por um conteúdo padrão.
+    </div>
+    {% endif %}
+
+    <div class="section">
+      <h2>🔮 Previsões Avançadas (LSTM)</h2>
+      <div class="card-lstm">
+        {% if previsoes_lstm %}
+        <ul>
+          {% for valor in previsoes_lstm %}
+            {% set v = valor.valor if valor is mapping and 'valor' in valor else valor %}
+            <li>{{ moeda }} {{ "%.2f"|format(v) }}</li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p>⚠️ Previsões LSTM indisponíveis no momento.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>📈 Gráfico Técnico</h2>
+      <div>{{ grafico|safe }}</div>
+    </div>
+
+    <div class="section">
+      <h2>📅 Previsões Numéricas (Prophet)</h2>
+      <div class="card">
+        {% if previsao %}
+        {% for item in previsao %}
+        <p style="color: #e0e0e0;">
+          <strong>{{ item.ds }}</strong>: R$ {{ "%.2f"|format(item.yhat) }}
+        </p>
+        {% endfor %}
+        {% else %}
+        <p style="color: #ff5555;">⚠️ Previsões Prophet indisponíveis no momento.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <h3>🔹 Níveis de Retração de Fibonacci</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Nível</th>
+      <th>Preço (R$)</th>
+      <th>Comentário</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for nivel, preco in fibonacci.items() %}
+    <tr>
+      <td>{{ nivel }}</td>
+      <td>R$ {{ "%.2f" | format(preco) }}</td>
+      <td>
+        {% if nivel == '0.0%' %}
+          Topo recente. Se ultrapassado, sinaliza força de alta.
+        {% elif nivel == '23.6%' %}
+          Correção leve. Pode indicar pullback curto antes de continuar a tendência.
+        {% elif nivel == '38.2%' %}
+          Zona de observação. Primeiro nível técnico relevante.
+        {% elif nivel == '50.0%' %}
+          Meio do caminho. Possível área de consolidação ou indecisão.
+        {% elif nivel == '61.8%' %}
+          Forte suporte ou resistência. Reversões costumam ocorrer aqui.
+        {% elif nivel == '100.0%' %}
+          Fundo recente. Se rompido, pode indicar continuação da queda.
+        {% else %}-{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2 style="color: #ffffff;">📊 Análise Combinada LSTM + Prophet</h2>
+<div class="card" style="background-color: #111827; padding: 16px; border-radius: 12px; margin-top: 10px; color: #e5e7eb;">
+  
+  <div style="display: flex; align-items: center; gap: 10px;">
+    {% if "alta" in tipo %}
+      <span style="font-size: 1.5em;">📈</span>
+    {% elif "baixa" in tipo %}
+      <span style="font-size: 1.5em;">📉</span>
+    {% else %}
+      <span style="font-size: 1.5em;">⚠️</span>
+    {% endif %}
+    <p style="margin: 0;">
+      <strong>Tendência Combinada:</strong> {{ tendencia_combinada }}
+    </p>
+  </div>
+
+  <p><strong>Média Ponderada:</strong> R$ {{ "%.2f"|format(media_ponderada or 0.0) }}</p>
+
+  <p style="font-size: 0.9em; color: #9ca3af;">
+    🧠 Classificação da convergência: <em>{{ tipo }}</em>
+    <span title="A convergência indica o grau de alinhamento entre os modelos LSTM e Prophet. Quando divergente, os modelos apontam caminhos distintos." style="cursor: help;">🛈</span>
+  </p>
+
+  {% if microtendencia %}
+    {% set classe_micro =
+      'alta' if 'alta' in microtendencia else
+      'queda' if 'queda' in microtendencia else
+      'estavel' %}
+    <div class="card-micro {{ classe_micro }}">
+      ⏩ <strong>Microtendência:</strong> {{ microtendencia }}
+    </div>
+  {% endif %}
+
+    <p style="font-size: 1.2em; line-height: 1.6;">
+      {% if "alta" in microtendencia %}
+        📈 <strong>Microtendência:</strong> {{ microtendencia }}
+      {% elif "queda" in microtendencia %}
+        📉 <strong>Microtendência:</strong> {{ microtendencia }}
+      {% else %}
+        🔁 <strong>Microtendência:</strong> {{ microtendencia }}
+      {% endif %}
+    </p>
+  </div>
+
+  {% if "Coincide" in comentario_fibonacci %}
+    <div style="background-color: #facc15; color: #111827; padding: 10px 14px; border-radius: 10px; margin-top: 10px; font-weight: 600;">
+      ⚠️ Atenção técnica: {{ comentario_fibonacci }}
+    </div>
+  {% else %}
+    <p style="color: #22d3ee; font-style: italic; margin-top: 10px;">
+      🧭 {{ comentario_fibonacci }}
+    </p>
+  {% endif %}
+
+</div>
+
+<div class="section">
+  {% if media_ponderada is not none %}
+    {% for nivel, preco in fibonacci.items() %}
+      {% if preco is not none and media_ponderada >= preco - 0.5 and media_ponderada <= preco + 0.5 %}
+        <p style="color: #29b6f6; margin-top: 10px;">
+          📍 A média ponderada coincide com o nível de <strong>{{ nivel }}</strong> de Fibonacci (R$ {{ '%.2f' | format(preco) }}).
+          Isso pode indicar uma região de suporte ou resistência técnica.
+        </p>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+</div>
+
+    <div class="section">
+      <h2>🔄 Cenários Alternativos Completos</h2>
+      <div class="card">
+        {{ cenarios|safe }}
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>🎯 Conclusão Final</h2>
+      <div class="card">
+        <p>{{ conclusao_final|safe }}</p>
+      </div>
+    </div>    
+
+    <div class="section">
+      <h2>📐 Alvo e Risco Recomendado</h2>
+      <div class="card" style="background-color: #111827; border-left: 4px solid #3b82f6; color: #e5e7eb;">
+        <p><strong>🎯 Alvo Técnico (TP):</strong> {{ moeda }} {{ "%.2f"|format(tp_sugerido or 0.0) }}</p>
+        <p><strong>🛡 Stop Técnico (SL):</strong> {{ moeda }} {{ "%.2f"|format(sl_sugerido or 0.0) }}</p>
+        <p style="font-size: 0.9em; color: #9ca3af;">
+          Baseado em ATR recente e comportamento técnico ajustado.
+        </p>
+      </div>
+    </div>    
+
+    {% if tipo_estrategia|lower == "neutro" and explicacao_estrategia %}
+      <div class="card" style="background-color: #1e293b; padding: 16px; border-left: 4px solid #9ca3af; border-radius: 12px; margin-top: 16px; color: #e2e8f0;">
+        <h3 style="margin-top: 0; color: #93c5fd;">🔍 Estratégia Técnica: Acompanhamento e Vigilância</h3>
+        <p style="font-size: 1.05em; line-height: 1.6;">{{ explicacao_estrategia }}</p>
+        {% if avaliacao_estrategia %}
+          <p style="font-size: 0.9em; color: #94a3b8; margin-top: 8px;">
+            <strong>Nota:</strong> {{ avaliacao_estrategia }}
+          </p>
+        {% endif %}
+        <p style="font-size: 0.85em; color: #9ca3af; margin-top: 12px;">
+          _Esta é uma leitura de acompanhamento baseada nos dados atuais. Sinais de entrada podem se configurar em breve._
+        </p>
+      </div>
+    {% elif tipo_estrategia == "short" or tipo_estrategia == "long" %}
+      {# Bloco principal será exibido mais abaixo #}
+    {% else %}
+      <div class="card-aviso">
+        ⚠️ <strong>Nenhuma Estratégia Definida:</strong><br>
+        Sem evidências suficientes para sugerir compra ou venda no momento.
+      </div>
+    {% endif %}
+
+    {% if tipo_estrategia|lower in ["short", "long"] %}
+    <div class="section">
+      <h2 style="color: #ffffff;">🎯 Estratégia Sugerida – {{ tipo_estrategia|capitalize }}</h2>
+      <div class="card {% if tipo_estrategia|lower == 'short' %}card-short{% else %}card-long{% endif %}">    
+
+        {% if explicacao_estrategia %}
+        <div style="background-color: #1e293b; padding: 16px; border-radius: 12px; margin-bottom: 10px; color: #e2e8f0;">
+          <p style="font-size: 1.05em; line-height: 1.6;">{{ explicacao_estrategia }}</p>
+        </div>
+        {% endif %}
+
+        {% if multiplicador_atr %}
+        <p style="font-size: 0.85em; color: #9ca3af;">
+          ⚙️ Multiplicador ATR aplicado: <strong>{{ multiplicador_atr }}</strong>
+        </p>
+        {% endif %}
+
+        <div class="section">
+          <div class="card" style="background-color: #1a2233; border-left: 4px solid #38bdf8; color: #e0f2fe;">
+            <h3 style="margin-top: 0; font-weight: bold;">📐 Diagnóstico Estratégico</h3>
+            <p><strong>Tendência combinada:</strong> {{ tendencia_combinada or "–" }}</p>
+            <p><strong>Microtendência:</strong> {{ microtendencia or "–" }}</p>
+            <p>
+              <strong>Reversão técnica:</strong>
+              {% if tipo_estrategia in ["short", "long"] %}
+                ✅ Confirmada
+              {% else %}
+                ❌ Não confirmada
+              {% endif %}
+            </p>
+            <p>
+              <strong>Confiança estratégica:</strong>
+              <p><strong>Confiança estratégica:</strong>
+                {% if grau_confianca|lower == "alta" %}
+                  <span style="color: #4ade80; font-weight: bold;">🟢 Alta</span>
+                {% elif grau_confianca|lower == "média" %}
+                  <span style="color: #facc15; font-weight: bold;">🟡 Média</span>
+                {% elif grau_confianca|lower == "baixa" %}
+                  <span style="color: #f87171; font-weight: bold;">🔴 Baixa</span>
+                {% else %}
+                  ⚪ Indefinida
+                {% endif %}
+              </p>
+          </div>
+        </div>
+        
+        <p><strong>Tipo:</strong> {{ tipo_estrategia|title }}</p>
+        <p><strong>Entrada:</strong> {{ moeda }} {{ "%.2f"|format(preco_entrada or 0.0) }}</p>
+        <p><strong>TP1:</strong> {{ moeda }} {{ "%.2f"|format(tp1 or 0.0) }} | 
+           <strong>TP2:</strong> {{ moeda }} {{ "%.2f"|format(tp2 or 0.0) }} | 
+           <strong>TP3:</strong> {{ moeda }} {{ "%.2f"|format(tp3 or 0.0) }}</p>
+        <p><strong>Stop Loss:</strong> {{ moeda }} {{ "%.2f"|format(sl or 0.0) }}</p>
+      </div>
+    {% endif %}
+
+<footer>
+  {{ aviso }}<br><br><strong>Powered by AnaliZ</strong>
+</footer>
+
+<div class="section">
+  <h2>📊 Fluxo de Ordens Intradiário</h2>
+  <table class="table table-striped table-dark">
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>Preço ({{ moeda }})</th>
+        <th>Quantidade</th>
+        <th>Lado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ordem in dados_fluxo_intraday %}
+      <tr>
+        <td>{{ ordem.timestamp }}</td>
+        <td>{{ ordem.price }}</td>
+        <td>{{ ordem.quantity }}</td>
+        <td>
+          {% if ordem.side == 'Compra' %}
+            🟢 Compra
+          {% else %}
+            🔴 Venda
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h2>⚖️ Pressão de Mercado Atual</h2>
+  {% if pressao == "compradora" %}
+    <p style="color: #4ade80; font-size:1.1em;">🟢 Pressão <strong>compradora</strong> dominante identificada.</p>
+  {% elif pressao == "vendedora" %}
+    <p style="color: #f87171; font-size:1.1em;">🔴 Pressão <strong>vendedora</strong> dominante identificada.</p>
+  {% else %}
+    <p style="color: #9ca3af; font-size:1.1em;">⚪️ Pressão <strong>neutra</strong> ou equilibrada no momento.</p>
+  {% endif %}
+</div>
+
+</body>
+</html>

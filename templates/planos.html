@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Nossos Planos – AnaliZ</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f9f9f9;
+      padding: 2rem;
+      color: #222;
+    }
+    h1 {
+      text-align: center;
+      color: #003b50;
+      margin-bottom: 2rem;
+    }
+    .planos {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2rem;
+      max-width: 1100px;
+      margin: auto;
+    }
+    .card {
+      background: white;
+      border: 1px solid #ccc;
+      padding: 1.5rem;
+      border-radius: 10px;
+      box-shadow: 0 0 12px rgba(0,0,0,0.05);
+    }
+    .card h2 {
+      margin-top: 0;
+      color: #003b50;
+    }
+    .card p {
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+    .preco {
+      font-size: 1.25rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      background: #003b50;
+      color: white;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Nossos Planos</h1>
+
+{% if session['usuario'] %}
+<div style="text-align:center; margin-bottom:1rem;">
+  Plano atual: <strong>{{ session['usuario']['plano']|capitalize }}</strong> |
+  Créditos: <strong>{{ session['usuario']['creditos'] }}</strong>
+</div>
+{% endif %}
+
+<div class="planos">
+
+  <div class="card">
+    <h2>AnaliZ Avulso</h2>
+    <div class="preco">R$12,90</div>
+    {% if session['usuario']['plano'] == 'avulso' %}<div class="badge">Plano ativo</div>{% endif %}
+    <p>Receba um relatório completo com análise técnica e IA.<br>Ideal para experimentar.</p>
+  </div>
+
+  <div class="card">
+    <h2>AnaliZ Essencial</h2>
+    <div class="preco">R$49,90/mês</div>
+    {% if session['usuario']['plano'] == 'essencial' %}<div class="badge">Plano ativo</div>{% endif %}
+    <p>Visualização com IA leve. IA Avançada sob demanda.</p>
+    <a href="/comprar_credito" class="btn">Comprar créditos</a>
+  </div>
+
+  <div class="card">
+    <h2>AnaliZ Carteira Pro</h2>
+    <div class="preco">R$129,90/mês</div>
+    {% if session['usuario']['plano'] == 'pro' %}<div class="badge">Plano ativo</div>{% endif %}
+    <p>Inclui 30 relatórios com LSTM, IA e PDF Premium.</p>
+  </div>
+
+    <div class="card">
+      <h2>AnaliZ Expert</h2>
+      <div class="preco">R$299,90/mês</div>
+      <p>Alta performance para influenciadores e analistas.<br>100 relatórios mensais com IA Avançada, histórico completo e exportação em lote.</p>
+    </div>
+
+    <div class="card">
+      <h2>AnaliZ Trader Dia</h2>
+      <div class="preco">R$59,90/mês</div>
+      <p>Consultas ilimitadas com IA leve das 09h às 17h. Ideal para day traders.<br><em>* IA Avançada disponível sob demanda</em></p>
+    </div>
+
+    <div class="card">
+      <h2>AnaliZ Trader 24h</h2>
+      <div class="preco">R$129,90/mês</div>
+      <p>Acesso completo 24h por dia com IA Avançada. Indicado para cripto e ativos internacionais.</p>
+    </div>
+
+  </div>
+</body>
+</html>

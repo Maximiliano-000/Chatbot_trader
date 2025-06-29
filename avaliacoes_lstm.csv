@@ -1,0 +1,3 @@
+data_avaliacao,ticker,intervalo,amostras,RMSE,MAPE
+2025-05-31 22:39:20,pendle-USD,30min,5,0.0285,0.64
+2025-06-03 00:39:33,pendle-USD,30min,5,0.0285,0.64

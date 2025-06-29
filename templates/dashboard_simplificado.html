@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>AnaliZ Crypto Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="/static/icon.png">
+    <meta name="theme-color" content="#0f0f10">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #0f0f10;
+            color: #ffffff;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 2rem auto;
+        }
+        .card {
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .card-yellow {
+            background-color: #fbbf24;
+            color: #1f2937;
+        }
+        .card-blue {
+            background-color: #38bdf8;
+            color: #1e3a8a;
+        }
+        .card-green {
+            background-color: #34d399;
+            color: #064e3b;
+        }
+        .card-purple {
+            background-color: #c084fc;
+            color: #4c1d95;
+        }
+        .highlight {
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+        h1, h2 {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .titulo {
+            background-color: #1f2937;
+            padding: 1rem;
+            border-radius: 12px;
+            text-align: center;
+            color: #60a5fa;
+            margin-bottom: 2rem;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="titulo">
+        <h1>AnaliZ Crypto Dashboard</h1>
+        <form method="get" action="/previsao_custom">
+            <div class="input-group">
+                <input type="text" class="form-control" name="ticker" placeholder="Digite o ativo (ex: BTC-USD, SOL-USD)" required>
+                <input type="text" class="form-control" name="periodo" placeholder="Período (ex: 45min, 1d)" required>
+                <button type="submit" class="btn btn-primary">Atualizar Dados</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card card-yellow">
+        <p class="highlight">
+            ⚡ Operação: <strong>{{ tipo_estrategia|upper }}</strong><br>
+            📈 Ativo: {{ ticker }}<br>
+            💲 Preço Atual: {{ preco_entrada }}
+        </p>
+    </div>
+
+    <div class="card card-blue">
+        <p><strong>🚀 Prophet:</strong> {{ tendencia_prophet }}</p>
+        <p><strong>🤖 LSTM:</strong> {{ tendencia_lstm }}</p>
+        <p><strong>Tendência:</strong> {{ tipo }}</p>
+    </div>
+
+    <div class="card card-green">
+        <h5>🌟 Estratégia</h5>
+        <p>Entrada: {{ preco_entrada }}</p>
+        <p>TP1: {{ tp1 }}</p>
+        <p>TP2: {{ tp2 }}</p>
+        <p>TP3: {{ tp3 }}</p>
+        <p>Stop Loss: {{ sl }}</p>
+    </div>
+
+    <div class="card card-purple">
+        <h5>🌀 Fibonacci</h5>
+        {% for nivel, preco in fibonacci.items() %}
+            <p>{{ nivel }} → {{ '%.2f' | format(preco) }}</p>
+        {% endfor %}
+        <p class="mt-2"><strong>🔹 Perspectiva Atual:</strong> {{ comentario_fibonacci }}</p>
+    </div>
+</div>
+</body>
+</html>

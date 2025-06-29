@@ -1,0 +1,13 @@
+Tipo,ATR,Status,Resultado
+Long,2.0,OK,"{'tipo': 'Long', 'preco_entrada': 100.0, 'tp1': 102.0, 'tp2': 103.0, 'tp3': 104.0, 'sl': 96.0}"
+Long,,OK,"{'tipo': 'Long', 'preco_entrada': 100.0, 'tp1': 102.0, 'tp2': 104.0, 'tp3': 106.0, 'sl': 99.0}"
+Long,{'valor': 2.5},OK,"{'tipo': 'Long', 'preco_entrada': 100.0, 'tp1': 102.5, 'tp2': 103.75, 'tp3': 105.0, 'sl': 95.0}"
+Long,{'erro': 'falha'},OK,"{'tipo': 'Long', 'preco_entrada': 100.0, 'tp1': 102.0, 'tp2': 104.0, 'tp3': 106.0, 'sl': 99.0}"
+Long,2.5,OK,"{'tipo': 'Long', 'preco_entrada': 100.0, 'tp1': 102.0, 'tp2': 104.0, 'tp3': 106.0, 'sl': 99.0}"
+Long,0,OK,"{'tipo': 'Long', 'preco_entrada': 100.0, 'tp1': 102.0, 'tp2': 104.0, 'tp3': 106.0, 'sl': 99.0}"
+Short,2.0,OK,"{'tipo': 'Short', 'preco_entrada': 100.0, 'tp1': 98.0, 'tp2': 97.0, 'tp3': 96.0, 'sl': 104.0}"
+Short,,OK,"{'tipo': 'Short', 'preco_entrada': 100.0, 'tp1': 98.0, 'tp2': 96.0, 'tp3': 94.0, 'sl': 101.0}"
+Short,{'valor': 2.5},OK,"{'tipo': 'Short', 'preco_entrada': 100.0, 'tp1': 97.5, 'tp2': 96.25, 'tp3': 95.0, 'sl': 105.0}"
+Short,{'erro': 'falha'},OK,"{'tipo': 'Short', 'preco_entrada': 100.0, 'tp1': 98.0, 'tp2': 96.0, 'tp3': 94.0, 'sl': 101.0}"
+Short,2.5,OK,"{'tipo': 'Short', 'preco_entrada': 100.0, 'tp1': 98.0, 'tp2': 96.0, 'tp3': 94.0, 'sl': 101.0}"
+Short,0,OK,"{'tipo': 'Short', 'preco_entrada': 100.0, 'tp1': 98.0, 'tp2': 96.0, 'tp3': 94.0, 'sl': 101.0}"

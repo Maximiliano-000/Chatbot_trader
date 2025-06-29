@@ -1,0 +1,21 @@
+{
+  "name": "AnaliZ – Análises Técnicas com IA",
+  "short_name": "AnaliZ",
+  "description": "Relatórios técnicos automatizados com inteligência artificial",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f10",
+  "theme_color": "#00e0ff",
+  "icons": [
+    {
+      "src": "/static/icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

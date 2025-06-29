@@ -1,0 +1,30 @@
+name: analiz_env
+channels:
+  - conda-forge
+  - apple
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pandas
+  - numpy
+  - matplotlib
+  - yfinance
+  - flask
+  - jinja2
+  - werkzeug
+  - itsdangerous
+  - markupsafe
+  - prophet
+  - openai
+  - textblob
+  - plotly
+  - apscheduler
+  - peewee
+  - python-dotenv
+  - weasyprint
+  - scikit-learn
+  - pip:
+      - pytelegrambotapi
+      - tensorflow-macos
+      - tensorflow-metal

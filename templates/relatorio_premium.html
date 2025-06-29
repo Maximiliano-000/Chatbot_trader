@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AnaliZ – Relatório Premium</title>
+  <style>
+    body {
+      font-family: "DejaVu Sans", sans-serif;
+    }
+  </style>  
+  <meta name="theme-color" content="#ffffff" />
+  <style>
+    body {
+      font-family: 'DejaVu Sans', sans-serif;
+      margin: 0;
+      padding: 2rem;
+      background: #f9f9f9;
+      color: #111;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+    }
+    p {
+      text-align: justify;
+      text-indent: 1.5em;
+    }
+    .container {
+      max-width: 850px;
+      margin: auto;
+      background: #fff;
+      padding: 2.5rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    .header-banner img {
+      width: 100%;
+      display: block;
+      margin-bottom: 2rem;
+    }
+    h2, h3 {
+      color: #003b50;
+      margin-top: 2rem;
+    }
+    ul {
+      padding-left: 1.5rem;
+    }
+    blockquote {
+      background: #f1f1f1;
+      border-left: 4px solid #00bcd4;
+      padding: 1rem;
+      margin-top: 2rem;
+      font-style: italic;
+      color: #444;
+      text-align: justify;
+    }
+    .btns {
+      margin-top: 2.5rem;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .btn {
+      text-decoration: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      font-weight: 500;
+      display: inline-block;
+    }
+    .btn-pdf { background: #003b50; color: white; }
+    .btn-whatsapp { background: #25D366; color: white; }
+    footer {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #555;
+      margin-top: 3rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    th, td {
+      padding: 0.6rem;
+      border: 1px solid #ccc;
+      text-align: left;
+    }
+    th {
+      background-color: #e6f4f6;
+    }
+    #sumario ul {
+      margin-left: 1.2rem;
+      margin-top: 0;
+    }
+    #sumario a {
+      color: #003b50;
+      text-decoration: none;
+    }
+    .placeholder {
+      color: #666;
+      font-style: italic;
+      background: #f0f0f0;
+      padding: 0.6rem;
+      border-left: 4px solid #bbb;
+      border-radius: 4px;
+    }
+    small {
+      display: block;
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+      color: #666;
+      text-align: center;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header-banner">
+      <img src="{{ url_for('static', filename='logo_banner.png') }}" alt="AnaliZ Banner" />
+    </div>
+
+    {% if session['usuario'] %}
+      <p style="text-align: right; font-size: 0.85rem; color: #444;">
+        Usuário: <strong>{{ session['usuario']['id'] }}</strong> |
+        Créditos restantes: <strong>{{ session['usuario']['creditos'] }}</strong>
+      </p>
+    {% endif %}
+
+    <h2><strong>Análise Técnica Premium para {{ ticker }}</strong></h2>
+    <p style="font-size: 0.95rem; font-style: italic; color: #444;">
+      Gerado automaticamente em {{ datahora }}, com base em dados técnicos.
+    </p>
+
+    <h3 id="sumario">Sumário</h3>
+    <ul>
+      <li><a href="#indicadores">1. Indicadores Técnicos</a></li>
+      <li><a href="#ia">2. Interpretação da IA</a></li>
+      <li><a href="#grafico">3. Gráfico Técnico</a></li>
+      <li><a href="#cenario">4. Cenários Alternativos</a></li>
+      <li><a href="#historico">5. Histórico de Previsões</a></li>
+      <li><a href="#conclusao">6. Considerações Finais</a></li>
+    </ul>
+
+    <h2 id="indicadores">1. Indicadores Técnicos</h2>
+    <ul>
+      <li><strong>RSI</strong>: {{ rsi }}</li>
+      <li><strong>SMA 20 dias</strong>: R$ {{ sma20 }}</li>
+      <li><strong>SMA 50 dias</strong>: R$ {{ sma50 }}</li>
+      <li><strong>Bollinger</strong>: Sup = R$ {{ upper_band }} / Inf = R$ {{ lower_band }}</li>
+      <li><strong>Volume Médio</strong>: {{ volume_medio }}</li>
+    </ul>
+
+    {% if session['aviso_sma20'] %}
+    <div style="margin-top: 1rem; padding: 1rem; background: #fff3cd; border-left: 4px solid #ffc107; color: #856404; border-radius: 8px;">
+      ⚠️ {{ session['aviso_sma20'] }}
+    </div>
+    {% endif %}
+
+    <h2 id="ia">2. Interpretação da IA</h2>
+
+    {% if ia_falhou %}
+    <div style="margin-top: 1rem; padding: 1rem; background: #fff3cd; border-left: 4px solid #ffc107; color: #856404;">
+      ⚠️ <strong>Nota:</strong> A IA não conseguiu gerar uma resposta completa neste momento.<br><br>
+      Isso pode acontecer ocasionalmente por instabilidade da API.
+
+      {% if modo != 'pdf' %}
+      <div style="margin-top: 1rem;">
+        <a href="/relatorio?ticker={{ ticker }}" class="btn btn-pdf">🔁 Gerar novamente</a>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <h3>Indicadores Técnicos</h3>
+    <p>{% if analise.indicadores.strip() %}{{ analise.indicadores }}{% else %}<span class="placeholder">Informação não disponível no momento.</span>{% endif %}</p>
+
+    {% if insights_tecnicos %}
+    <div style="margin-top: 2rem; padding: 1.5rem; background-color: #202020; border-left: 4px solid #6c63ff; border-radius: 12px;">
+      <h3 style="color: #fff; font-size: 1.2rem;">🔎 O que os indicadores estão dizendo?</h3>
+      <ul style="color: #ccc; font-size: 0.95rem; line-height: 1.6; list-style: none; padding-left: 0;">
+        {% for insight in insights_tecnicos %}
+          <li style="margin-bottom: 10px;">
+            {% if "RSI" in insight %}
+              <span style="display: inline-block;">🔍 {{ insight | safe }}</span><br>
+              <small style="color: #999;">📌 Sugestão: Zona de possível entrada — mas é recomendável acompanhar de perto antes de agir.</small>
+            {% elif "banda inferior" in insight %}
+              <span style="display: inline-block;">🧭 {{ insight | safe }}</span><br>
+              <small style="color: #999;">📌 Sugestão: Ponto de observação técnico. Valide com outros indicadores e volume.</small>
+            {% elif "banda superior" in insight %}
+              <span style="display: inline-block;">📉 {{ insight | safe }}</span><br>
+              <small style="color: #999;">📌 Sugestão: Momento de atenção. Pode haver reversão em breve.</small>
+            {% elif "média de 20 dias" in insight %}
+              <span style="display: inline-block;">📈 {{ insight | safe }}</span><br>
+              <small style="color: #999;">📌 Sugestão: Acompanhar de perto para entender se a tendência atual vai se confirmar ou reverter.</small>
+            {% else %}
+              <span style="display: inline-block;">📌 {{ insight | safe }}</span>
+            {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+    <h3>Tendência Atual</h3>
+    <p>{% if analise.tendencia.strip() %}{{ analise.tendencia }}{% else %}<span class="placeholder">Informação não disponível no momento.</span>{% endif %}</p>
+
+    <!-- >>> Início da seção Prophet – previsão técnica com IA -->
+<section class="previsao-prophet" style="margin-top: 40px; padding: 20px; background-color: #121212; border-left: 4px solid #e50914; border-radius: 12px;">
+  <h2 style="color: #fff; font-weight: 600;">Previsão de Tendência (Prophet)</h2>
+
+  <p style="color: #ddd; font-size: 1.05em;">
+    Para o período selecionado, o modelo Prophet identificou um
+    <strong style="color: #ff5252;">viés de {{ viés_tendência }}</strong>.
+    A expectativa é que o ativo oscile entre <strong>R$ {{ limite_minimo }}</strong> e
+    <strong>R$ {{ limite_maximo }}</strong>, com base nos ajustes técnicos aplicados a partir das
+    Bandas de Bollinger.
+  </p>
+
+  <p style="color: #ccc; font-size: 0.95em; line-height: 1.6;">
+    {{ mensagem_prophet | safe }}
+  </p>  
+
+  {% if ajuste_prophet %}
+  <div style="background-color: #1e1e1e; border-left: 4px solid #ffa500; padding: 12px; margin-top: 15px; border-radius: 8px;">
+    <p style="color: #f1c40f; font-size: 0.9em;">
+      A previsão foi suavizada e mantida dentro de limites técnicos com base em indicadores recentes do ativo. Isso garante maior aderência ao comportamento real do mercado.
+    </p>
+  </div>
+  {% endif %}
+
+  {% if alerta_estabilidade %}
+  <div style="background-color: #182c1a; border-left: 4px solid #27ae60; padding: 12px; margin-top: 12px; border-radius: 8px;">
+    <p style="color: #2ecc71; font-size: 0.9em;">
+      Observou-se uma faixa de oscilação estreita. O mercado pode estar em fase de consolidação.
+    </p>
+  </div>
+  {% endif %}
+
+  {% if aviso_sma20 %}
+  <p style="color: #999; font-size: 0.85em; margin-top: 10px;">⚠️ {{ aviso_sma20 }}</p>
+  {% endif %}
+</section>        
+
+    <h3>Cenário Projetado</h3>
+    <p>{% if analise.previsao.strip() %}{{ analise.previsao }}{% else %}<span class="placeholder">Informação não disponível no momento.</span>{% endif %}</p>
+
+    <div style="padding: 16px; background-color: #121212; border-radius: 12px; color: #eee; font-family: 'Arial', sans-serif; margin-top: 24px;">
+      <h3 style="color: #ff4d4d;">Análise Inteligente da Previsão (IA + Técnicos)</h3>
+    
+      <p>
+        As previsões dos próximos <strong>{{ dias }}</strong> dias foram ajustadas com base em limites técnicos realistas:
+      </p>
+    
+      <ul>
+        <li><strong>Limite superior (resistência técnica):</strong> R$ {{ limite_maximo }}</li>
+        <li><strong>Limite inferior (suporte técnico):</strong> R$ {{ limite_minimo }}</li>
+      </ul>
+    
+      {% if alerta_estabilidade %}
+      <p style="color: #f4c542;">
+        <strong>⚠️ Observação:</strong> A amplitude entre suporte e resistência é estreita, sugerindo provável fase de lateralização do ativo.
+      </p>
+      {% endif %}
+    
+      {% if ajuste_prophet %}
+      <p style="color: #ff9999;">
+        <strong>🔍 Ajuste aplicado:</strong> O modelo Prophet foi automaticamente limitado para evitar distorções estatísticas nos extremos da previsão.
+      </p>
+      {% endif %}
+    
+      <p>
+        Esses ajustes tornam a previsão mais confiável e alinhada com o comportamento real do mercado.
+        Relatórios premium AnaliZ integram inteligência técnica e leitura contextual para apoiar decisões mais conscientes.
+      </p>
+    </div>    
+
+    {% if ajuste_lstm %}
+    <div style="margin-top: 1rem; padding: 1rem; border-left: 4px solid #ff9800; background: #fff8e1; color: #5f370e;">
+      ⚠️ <strong>Nota técnica:</strong> A previsão LSTM foi ajustada automaticamente com base na média móvel (SMA20 ± 15%) para manter coerência com os padrões técnicos recentes.
+    </div>
+    {% endif %}
+
+    <h3>Estratégia</h3>
+    <p>{% if analise.estrategia.strip() %}{{ analise.estrategia }}{% else %}<span class="placeholder">Nenhuma estratégia sugerida foi gerada.</span>{% endif %}</p>
+
+    <h3>Gestão de Risco</h3>
+    <p>Stop: R$ {{ stop }} | Alvo: R$ {{ alvo }}</p>
+
+    <h2 id="grafico">3. Gráfico Técnico – Evolução e Indicadores</h2>
+    <div style="margin: 2rem 0; text-align: center; max-width: 100%;">
+      {{ grafico | safe }}
+
+      <small style="display: block; color: #aaa; margin-top: 0.5rem;">
+        Gráfico gerado automaticamente com base em indicadores técnicos via matplotlib.
+      </small>
+
+      <!-- ✅ Legenda visual dos marcadores -->
+      <small style="display: block; color: #bbb; margin-top: 0.4rem;">
+        🔺 RSI extremo | 🟡 Cruzamento altista | ⚪ Cruzamento baixista | ⬛ Rompimento superior | ❌ Rompimento inferior | ┆ Changepoint
+      </small>
+
+    <div style="margin-top: 10px; background-color: #1a1a1a; padding: 10px 15px; border-left: 4px solid #777; border-radius: 8px; display: inline-block; text-align: left;">
+      <p style="color: #ccc; font-size: 0.9em; margin: 0;">
+        🔍 <strong>Changepoints:</strong> As linhas verticais tracejadas em cinza representam momentos em que o modelo Prophet identificou mudanças relevantes na trajetória do ativo. Essas marcações tornam a previsão mais sensível a inflexões reais do mercado.
+      </p>
+    </div>
+
+  <p style="color: #f55; font-size: 0.95em; margin-top: 1.2rem; max-width: 680px; margin-left: auto; margin-right: auto; text-align: left;">
+    <strong>O que são changepoints?</strong> São pontos identificados automaticamente pelo modelo Prophet, onde o comportamento do mercado muda de maneira significativa. Isso permite que o modelo ajuste sua previsão de forma mais fiel à realidade do ativo.
+  </p>
+</div>
+
+    <h2 id="cenario">4. Cenários Alternativos</h2>
+    <div>
+      {{ cenarios | safe }}
+    </div>
+
+    <h2 id="lstm">5. Previsão com LSTM (IA Avançada)</h2>
+
+    {% if previsoes_lstm %}
+      <p>
+        Abaixo, apresentamos a previsão de preços para os próximos <strong>{{ dias }}</strong> dias,
+        gerada por uma rede neural do tipo <strong>LSTM</strong> (Long Short-Term Memory), treinada com dados do ativo <strong>{{ ticker }}</strong>.
+      </p>
+      <div class="card">
+        <ul>
+          {% for valor in previsoes_lstm %}
+            <li>Dia {{ loop.index }}: R$ {{ valor | round(2) }}</li>
+          {% endfor %}
+          </ul>
+          </div>
+
+          {% if session.get('lstm_credito_usado') %}
+          <div style="margin-top: 1rem; padding: 1rem; background: #e8f5e9; border-left: 4px solid #43a047; color: #2e7d32; border-radius: 8px;">
+            ✅ Um crédito foi utilizado para gerar esta previsão com IA Avançada (LSTM).
+          </div>
+          {% endif %}
+
+    {% else %}
+      <div class="card">
+        <p style="color: #888; font-style: italic;">
+          🔓 Previsão com rede neural LSTM disponível como recurso premium.<br>
+          <small>Adquira com 1 crédito ou ative o plano <strong>Carteira Pro</strong> para desbloquear esta análise.</small>
+        </p>
+
+        {% if modo != "pdf" %}
+        <div style="margin-top: 1rem;">
+          <a href="/turbinar_lstm?ticker={{ ticker }}" class="btn btn-pdf">
+            ⚡ Turbinar com IA Avançada (LSTM)
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    {% endif %}  
+    
+    {% if visao_leiga %}
+    <div style="margin-top: 2rem; padding: 1rem 1.5rem; background-color: #181818; border-left: 4px solid #e50914; border-radius: 10px;">
+      <h3 style="color: #fff; font-size: 1.2rem;">🤖 Visão da IA em palavras simples</h3>
+      <p style="color: #ccc; font-size: 0.95rem; line-height: 1.5;">{{ visao_leiga }}</p>
+    </div>
+    {% endif %}
+    
+    <h2 id="conclusao">6. Considerações Finais</h2>
+    <p>{{ conclusao_final }}</p>
+    </p>
+
+    <blockquote>{{ aviso }}</blockquote>
+
+    {% if modo != "pdf" %}
+    <div class="btns">
+      <a class="btn btn-pdf" href="/exportar_pdf?ticker={{ ticker }}" target="_blank">Baixar PDF</a>
+      <a class="btn btn-whatsapp" href="https://wa.me/?text=Confira%20essa%20análise%20premium%20de%20{{ ticker }}%20no%20AnaliZ" target="_blank">Compartilhar no WhatsApp</a>
+    </div>
+    {% endif %}
+
+    <footer>
+      Gerado por <strong>AnaliZ</strong><br />
+      Última atualização: {{ datahora }}<br />
+      <span style="font-size: 0.85rem;">© 2025 Wesley Maximiliano Braga. Todos os direitos reservados.</span>
+    </footer>    
+  </div>
+</body>
+</html>

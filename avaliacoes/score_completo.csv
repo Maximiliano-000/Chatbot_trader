@@ -1,0 +1,7 @@
+MAPE_Prophet,RMSE_Prophet,MAPE_LSTM,RMSE_LSTM,RSI_acertos,ticker,intervalo,data
+,,,,,pendle-USD,30min,2025-05-30 15:05:17
+,,,,1.0,pendle-USD,30min,2025-05-30 15:08:40
+,,,,1.0,pendle-USD,30min,2025-05-30 15:17:45
+0.11,0.0045,,,1.0,pendle-USD,30min,2025-05-31 22:19:11
+0.11,0.0045,0.64,0.0285,1.0,pendle-USD,30min,2025-05-31 22:39:20
+,,0.64,0.0285,1.0,pendle-USD,30min,2025-06-03 00:39:33

@@ -1,0 +1,6 @@
+{
+    "python.pythonPath": "/opt/homebrew/Caskroom/miniconda/base/envs/analiz_env/bin/python",
+    "python.analysis.extraPaths": ["./", "./venv/lib/python3.10/site-packages"],
+    "python.analysis.autoSearchPaths": true,
+    "python.analysis.useLibraryCodeForTypes": true
+  }  
