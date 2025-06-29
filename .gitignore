@@ -1,0 +1,6 @@
+.venv/
+botenv/
+botenv311/
+chatbot_env/
+*.dylib
+__pycache__/
