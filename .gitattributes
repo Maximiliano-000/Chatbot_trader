@@ -1,3 +1,30 @@
-*.h5 filter=lfs diff=lfs merge=lfs -text
+# Normalização de texto (boa prática cross-platform)
+* text=auto eol=lf
+
+# --- ML Pesos/Modelos (LFS) ---
+# TensorFlow/Keras
+*.h5    filter=lfs diff=lfs merge=lfs -text
+*.hdf5  filter=lfs diff=lfs merge=lfs -text
 *.keras filter=lfs diff=lfs merge=lfs -text
-*.pkl filter=lfs diff=lfs merge=lfs -text
+*.ckpt  filter=lfs diff=lfs merge=lfs -text
+*.tflite filter=lfs diff=lfs merge=lfs -text
+
+# SavedModel (estrutura de pastas do TF)
+saved_model.pb filter=lfs diff=lfs merge=lfs -text
+variables/*    filter=lfs diff=lfs merge=lfs -text
+
+# PyTorch
+*.pt    filter=lfs diff=lfs merge=lfs -text
+*.pth   filter=lfs diff=lfs merge=lfs -text
+
+# ONNX / Graphs
+*.onnx  filter=lfs diff=lfs merge=lfs -text
+# GraphDef / SavedModel
+*.pb    filter=lfs diff=lfs merge=lfs -text
+
+# Serialização/artefatos de ML
+*.pkl    filter=lfs diff=lfs merge=lfs -text
+*.joblib filter=lfs diff=lfs merge=lfs -text
+
+# (Opcional) exemplos de relatório binário
+# *.pdf  filter=lfs diff=lfs merge=lfs -text
