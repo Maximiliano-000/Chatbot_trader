@@ -1,6 +1,142 @@
-.venv/
-botenv/
-botenv311/
-chatbot_env/
-*.dylib
+# =========================
+# Python básico
+# =========================
 __pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.cache/
+
+# =========================
+# Ambientes
+# =========================
+.env
+.env.*
+.venv/
+venv/
+.conda/
+.direnv/
+.envrc
+.python-version
+
+# =========================
+# IDE / SO
+# =========================
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# =========================
+# Build / distribuição
+# =========================
+build/
+dist/
+pip-wheel-metadata/
+share/python-wheels/
+
+# =========================
+# Dados, modelos, artefatos e saídas
+# =========================
+data/
+dados/
+datasets/
+artifacts/
+reports/
+relatorios/
+reports_*/
+resultados_*/
+static/generated/
+previsoes_prophet/
+logs/
+logs_*/
+# Bancos e formatos de dados
+*.db
+*.sqlite*
+*.parquet
+*.h5
+*.hdf5
+*.pkl
+*.joblib
+*.ckpt
+*.csv
+*.tsv
+*.feather
+*.npz
+*.npy
+
+# =========================
+# Modelos (artefatos grandes)
+# =========================
+# ATENÇÃO: não ignore o diretório 'models/' se ele contiver código Python.
+# Em vez disso, ignore só os pesos/artefatos:
+models/**/*.h5
+models/**/*.hdf5
+models/**/*.pkl
+models/**/*.joblib
+models/**/*.ckpt
+models/**/*.tflite
+models/**/*.onnx
+models/**/*.pb
+models/**/*.pth
+models/**/*.pt
+models/**/*.keras
+# Se quiser manter o ignore total de 'models/' (não recomendado se houver .py), troque o bloco acima por:
+# models/
+
+modelos/
+modelos_lstm/
+
+# =========================
+# Testes, cobertura e ferramentas
+# =========================
+.tox/
+.nox/
+.hypothesis/
+.benchmarks/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# =========================
+# Logs e temporários
+# =========================
+*.log
+*.out
+*.err
+*.bak
+*.tmp
+
+# =========================
+# Front-end (se houver)
+# =========================
+node_modules/
+static/build/
+
+# =========================
+# Documentação (build)
+# =========================
+docs/_build/
+site/
+
+# =========================
+# Git indevido
+# =========================
+ChatbotTrader3.git/
+
+# =========================
+# Permitir amostras pequenas para docs/testes
+# =========================
+!samples/
+!samples/**/*
+# Se quiser CSVs também em docs:
+!docs/data/**/*.csv
