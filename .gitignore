@@ -140,3 +140,5 @@ ChatbotTrader3.git/
 !samples/**/*
 # Se quiser CSVs também em docs:
 !docs/data/**/*.csv
+replacements.txt
+chatbot_env/
