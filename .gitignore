@@ -142,3 +142,5 @@ ChatbotTrader3.git/
 !docs/data/**/*.csv
 replacements.txt
 chatbot_env/
+
+analyz/
