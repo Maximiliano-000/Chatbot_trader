@@ -148,7 +148,7 @@ def obter_preco_atual_binance(symbol: str = "PENDLEUSDT") -> float:
     Exemplo de symbol: 'BTCUSDT', 'ETHUSDT', 'PENDLEUSDT'
     """
     try:
-        url = f"https://api.binance.com/api/v3/ticker/price"
+        url = "https://api.binance.com/api/v3/ticker/price"
         response = requests.get(url, params={"symbol": symbol.upper()}, timeout=5)
         response.raise_for_status()
         data = response.json()

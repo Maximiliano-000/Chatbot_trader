@@ -1,5 +1,5 @@
-import pandas as pd
 import numpy as np
+import math 
 
 def calcular_adx(df, periodo=14):
     df = df.copy()
@@ -42,22 +42,29 @@ def calcular_vwap(df, silenciar=False):
     df = df.copy()
     if df.empty or 'Volume' not in df.columns or df['Volume'].sum() == 0:
         if not silenciar:
-            print(f"[ERRO VWAP] Dados insuficientes ou volume zero")
+            print("[ERRO VWAP] Dados insuficientes ou volume zero")
         return 0.0
-
     df['TP'] = (df['High'] + df['Low'] + df['Close']) / 3
     df['VP'] = df['TP'] * df['Volume']
     vwap = df['VP'].cumsum() / df['Volume'].cumsum()
-    return round(vwap.iloc[-1], 2)
+    return float(round(vwap.iloc[-1], 2))
 
 def calcular_atr(df, periodo=14):
     df = df.copy()
     if len(df) < periodo:
         print(f"[ERRO ATR] Dados insuficientes ({len(df)} candles)")
         return 0.0
-
-    df['TR'] = np.maximum(df['High'] - df['Low'],
-                 np.maximum(abs(df['High'] - df['Close'].shift(1)),
-                            abs(df['Low'] - df['Close'].shift(1))))
-    atr = df['TR'].rolling(window=periodo).mean()
-    return round(atr.iloc[-1], 2)
+    try:
+        tr = np.maximum(
+            df['High'] - df['Low'],
+            np.maximum(np.abs(df['High'] - df['Close'].shift(1)),
+                       np.abs(df['Low'] - df['Close'].shift(1)))
+        )
+        atr = tr.rolling(window=periodo).mean()
+        valor = atr.iloc[-1]
+        if valor is None or (isinstance(valor, float) and math.isnan(valor)):
+            return 0.0
+        return float(round(valor, 2))
+    except Exception as e:
+        print(f"[ERRO seguro] calcular_atr: {e}")
+        return 0.0

@@ -1,12 +1,24 @@
-# model.py
+# model.py (cabeçalho final sugerido)
 
-import re
-from openai import OpenAI
-from dotenv import load_dotenv
 import os
+import re
+import numpy as np
+from flask import session            # mantenha se for usado neste arquivo
+import tensorflow as tf              # mantenha se for usado neste arquivo
 
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+from dotenv import load_dotenv
+from openai import OpenAI
+
+load_dotenv()  # carrega .env antes de usar a chave
+
+key = os.getenv("OPENAI_API_KEY")
+if not key:
+    # erro claro em runtime em vez de stacktrace genérico
+    raise RuntimeError(
+        "OPENAI_API_KEY não encontrado. Defina no .env ou no ambiente antes de rodar."
+    )
+
+client = OpenAI(api_key=key)
 
 def analise_com_gpt(ticker, df, previsao_df):
     ultimos_precos = df['Close'].tail(3).values.tolist()
@@ -68,9 +80,6 @@ def analise_fallback():
         "aviso": "_Esta análise está incompleta devido a erro interno._"
     }
 
-import numpy as np
-from flask import session
-
 # =============================================================================
 # Ajuste técnico para previsão LSTM
 # =============================================================================
@@ -107,7 +116,6 @@ def ajustar_previsao_lstm(valor_original, indicadores, ticker=None):
     # =============================================================================
 # Criação do modelo LSTM para treinamento (usado em train_cripto.py)
 # =============================================================================
-import tensorflow as tf
 Sequential = tf.keras.models.Sequential
 LSTM = tf.keras.layers.LSTM
 Dense = tf.keras.layers.Dense

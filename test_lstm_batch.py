@@ -63,7 +63,9 @@ for ticker in tickers:
         plt.plot(df["Dia"], df["Real"], label="Real", marker="o")
         plt.plot(df["Dia"], df["Previsto"], label="Previsto", marker="x")
         plt.title(f"📈 Previsão LSTM – {ticker}")
-        plt.legend(); plt.grid(True); plt.tight_layout()
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
         plt.savefig(f"resultados_lstm/lstm_{nome_curto}.png")
         plt.close()
 

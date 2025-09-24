@@ -1,6 +1,4 @@
-import pandas as pd
-import numpy as np
-from sklearn.preprocessing import MinMaxScaler
+
 
 def preparar_dados_prophet(dados):
     dados = dados.copy().reset_index()

@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from .multiplicador import obter_multiplicador_atr
 
 # =============================
 # 1. Calcular indicadores técnicos
@@ -15,7 +14,6 @@ def calcular_indicadores(dados, intervalo='1d'):
     df.index = pd.to_datetime(df.index)
 
     if 'Close' not in df.columns:
-        print(f"[ERRO] Coluna 'Close' não encontrada.")
         return pd.DataFrame()
 
     min_candles_por_intervalo = {
@@ -439,3 +437,23 @@ def calcular_grau_confianca(
     grau = "Média"
     print(">> grau_confiança:", grau)
     return grau
+
+def features_para_ml(df):
+    """
+    Retorna X, y (opcional) para classificação direcional.
+    y = 1 se Close(t+1) > Close(t), do contrário 0.
+    """
+    d = df.copy()
+    cols_req = ["Close","SMA20","SMA50","UpperBand","LowerBand","RSI","MACD","MACD_Signal","Volume_Medio"]
+    for c in cols_req:
+        if c not in d.columns:
+            d[c] = np.nan
+    d["ret"] = d["Close"].pct_change().fillna(0.0)
+    d["pctb"] = (d["Close"] - d["LowerBand"]) / (d["UpperBand"] - d["LowerBand"] + 1e-9)
+    d["slope20"] = d["SMA20"].diff()
+    d["slope50"] = d["SMA50"].diff()
+    d = d.dropna().copy()
+    X = d[["RSI","MACD","MACD_Signal","pctb","slope20","slope50","Volume_Medio","ret"]].values
+    y = (d["Close"].shift(-1) > d["Close"]).astype(int).iloc[:-1].values
+    X = X[:-1]
+    return X, y

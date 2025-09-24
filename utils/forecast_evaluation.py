@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import pandas as pd
+from datetime import datetime
 from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
+from .metrics import directional_accuracy
 from prophet.diagnostics import cross_validation, performance_metrics
 from prophet.plot import plot_cross_validation_metric
 import logging
@@ -100,8 +102,6 @@ def residuals_diagnostics(model, df_prophet):
 
     return res
 
-from datetime import datetime
-
 def avaliar_previsao_real(previsao_df: pd.DataFrame, preco_real_df: pd.DataFrame, ticker: str, intervalo: str, salvar_em='avaliacoes_prophet.csv'):
     """
     Compara previsão x realizado, calcula RMSE/MAPE e salva score histórico.
@@ -113,13 +113,17 @@ def avaliar_previsao_real(previsao_df: pd.DataFrame, preco_real_df: pd.DataFrame
         rmse = ((df['yhat'] - df['preco_real']) ** 2).mean() ** 0.5
         mape = df['erro_pct'].mean()
 
+        # Directional Accuracy (DA)
+        da = directional_accuracy(df['preco_real'].values, df['yhat'].values)
+
         resultado = {
             "data_avaliacao": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "ticker": ticker,
             "intervalo": intervalo,
             "amostras": len(df),
             "RMSE": round(rmse, 4),
-            "MAPE": round(mape, 2)
+            "MAPE": round(mape, 2),
+            "DA": round(da, 3)
         }
 
         df_resultado = pd.DataFrame([resultado])
@@ -148,13 +152,17 @@ def avaliar_lstm_vs_real(previsao_lstm: list[float], precos_reais: list[float], 
     rmse = ((df['previsto_lstm'] - df['preco_real']) ** 2).mean() ** 0.5
     mape = df['erro_pct'].mean()
 
+    # Directional Accuracy (DA)
+    da = directional_accuracy(df['preco_real'].values, df['previsto_lstm'].values)
+
     resultado = {
         "data_avaliacao": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "ticker": ticker,
         "intervalo": intervalo,
         "amostras": len(df),
         "RMSE": round(rmse, 4),
-        "MAPE": round(mape, 2)
+        "MAPE": round(mape, 2),
+        "DA": round(da, 3)
     }
 
     df_resultado = pd.DataFrame([resultado])
@@ -180,3 +188,4 @@ def avaliar_rsi_comportamento(rsi_series, preco_series):
     quedas_apos_pico = preco_series.diff().fillna(0) < 0
     acertos = (zonas_sobrecompra & quedas_apos_pico).sum()
     return acertos
+

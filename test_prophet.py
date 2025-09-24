@@ -52,8 +52,10 @@ def validar_parametros_prophet(
 
     # gera strings para Prophet
     def to_str(m):
-        if m % 1440 == 0: return f"{m//1440} days"
-        if m %   60 == 0: return f"{m//60} hours"
+        if m % 1440 == 0: 
+            return f"{m//1440} days"
+        if m %   60 == 0: 
+            return f"{m//60} hours"
         return f"{m} minutes"
 
     init_str    = to_str(init_min)

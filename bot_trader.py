@@ -1,45 +1,38 @@
 # 🔧 Sistema e utilitários
 import os
-os.environ["DYLD_LIBRARY_PATH"] = "/opt/homebrew/lib"
-os.environ["PKG_CONFIG_PATH"] = "/opt/homebrew/lib/pkgconfig"
-import io
-import base64
-import datetime
+from datetime import datetime
+from io import BytesIO
+
+# 🔐 .env
+from dotenv import load_dotenv
+load_dotenv()
 
 # 📊 Dados e análise
-import pandas as pd
 import numpy as np
-import yfinance as yf
+import pandas as pd
 from prophet import Prophet
 from textblob import TextBlob
+from scipy.stats import zscore
 
-# 📈 Gráficos
-import matplotlib
-matplotlib.use('Agg')  # Para geração sem interface gráfica (PDF, servidor)
-import matplotlib.pyplot as plt
-import plotly.graph_objs as go
-import plotly.io as pio
+# 📈 Gráficos (sem statements aqui)
+import plotly.express as px  # se a função de gráfico ainda existir/for usada
 
 # 🤖 IA e APIs externas
-from openai import OpenAI
 import telebot
 
 # 🌐 Web e interface Flask
 from flask import Flask, request, jsonify, render_template, redirect, session, send_file
 from markupsafe import Markup
+from weasyprint import HTML
 
 # 📆 Agendamentos
 from apscheduler.schedulers.background import BackgroundScheduler
-
-# 📂 Variáveis de ambiente (.env)
-from dotenv import load_dotenv
-load_dotenv()
 
 # 🧠 Módulos internos do projeto
 from logger import uso_logger, erro_logger
 from predict import prever_proximo_fechamento
 from model import analise_com_gpt, analise_fallback, ajustar_previsao_lstm
-from db import criar_tabela, listar_previsoes, salvar_previsao
+from db import listar_previsoes, salvar_previsao
 
 # 📁 Módulos internos em utils
 from utils.financeiro import obter_dados, obter_dados_binance
@@ -47,26 +40,24 @@ from utils.indicadores import (
     calcular_indicadores,
     calcular_fibonacci,
     calcular_estrategia_longa,
-    calcular_estrategia_short
+    calcular_estrategia_short,
+    validar_reversao_baixa,
+    validar_reversao_alta,
+    calcular_grau_confianca,
+    gerar_microtendencia,
 )
-from utils.indicadores import validar_reversao_baixa, validar_reversao_alta
-from utils.indicadores import validar_reversao_baixa, validar_reversao_alta, calcular_grau_confianca
-from utils.indicadores_avancados import (
-    calcular_adx, calcular_cci, calcular_vwap, calcular_atr
-)
-from utils.multiplicador import obter_multiplicador_atr
+from utils.indicadores_avancados import calcular_adx, calcular_cci, calcular_vwap, calcular_atr
 from utils.mensagem_estrategia import gerar_explicacao_estrategia, gerar_conclusao_dinamica
-from utils.complementares import gerar_cenarios_alternativos, ticker_formatado
+from utils.complementares import gerar_cenarios_alternativos
 from utils.graficos import gerar_grafico
 from utils.dados_com_fallback import obter_dados_com_fallback
-
-# ✅ Novos imports estratégicos (para previsões Prophet e LSTM)
-from prophet_forecaster import executar_pipeline_completo
-from utils.forecast_evaluation import residuals_diagnostics, cv_summary, backtest_evaluate
-from lstm_forecaster import CriptoForecaster
+from utils.moeda import detectar_mercado, moeda_por_mercado, simbolo_moeda, make_fmt
 from utils.sinais import interpretar_sinais_tecnicos
-from utils.indicadores import gerar_microtendencia
-from avaliador_completo import executar_avaliacao_completa
+from prophet_forecaster import executar_pipeline_completo
+from lstm_forecaster import CriptoForecaster
+
+os.environ.setdefault("DYLD_LIBRARY_PATH", "/opt/homebrew/lib")
+os.environ.setdefault("PKG_CONFIG_PATH", "/opt/homebrew/lib/pkgconfig")
 
 def calcular_score_adaptativo(ticker, intervalo, periodo, dias=5):
     # Carrega dados usando yfinance com fallback Twelve Data
@@ -108,17 +99,8 @@ def calcular_score_adaptativo(ticker, intervalo, periodo, dias=5):
     indicadores_textuais = calcular_indicadores(dados)
     score_indicadores = interpretar_sinais_tecnicos(indicadores_textuais)
 
-    # Pesos definidos com base no intervalo
-    pesos_por_intervalo = {
-        "15min": {"prophet": 0.05, "lstm": 0.65, "indicadores": 0.30},
-        "30min": {"prophet": 0.05, "lstm": 0.65, "indicadores": 0.30},
-        "1h": {"prophet": 0.10, "lstm": 0.60, "indicadores": 0.30},
-        "1d": {"prophet": 0.25, "lstm": 0.45, "indicadores": 0.30},
-        "1sem": {"prophet": 0.40, "lstm": 0.30, "indicadores": 0.30},
-        "1mes": {"prophet": 0.50, "lstm": 0.20, "indicadores": 0.30},
-    }
-
-    pesos = pesos_por_intervalo.get(intervalo)
+    from utils.ensemble import obter_pesos
+    pesos = obter_pesos(intervalo)
     if pesos is None:
         raise ValueError(f"Intervalo '{intervalo}' não está definido nos pesos.")
 
@@ -135,21 +117,16 @@ def calcular_score_adaptativo(ticker, intervalo, periodo, dias=5):
 # =============================================================================
 # 1. Carregamento de variáveis de ambiente e configurações globais
 # =============================================================================
-load_dotenv()
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
 
-# Inicializa o cliente OpenAI (v1.x)
-client = OpenAI(api_key=OPENAI_API_KEY)
-
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 
-from flask import session
-app.secret_key = 'seu_segredo_seguro_aqui'  # necessário para usar sessions
+app.secret_key = os.getenv("FLASK_SECRET_KEY") or os.urandom(24).hex()
 
 # Lista de ativos que serão monitorados pelo scheduler
 ativos_monitorados = [
@@ -170,8 +147,6 @@ notificacoes = {}
 # =============================================================================
 # 4. Import da função de previsão LSTM e validador técnico
 # =============================================================================
-from predict import prever_proximo_fechamento
-from model import ajustar_previsao_lstm
 
 # Função de proteção para cálculos com fallback
 def seguro(funcao, *args, **kwargs):
@@ -181,7 +156,6 @@ def seguro(funcao, *args, **kwargs):
         # Registro extra para atr ou outros valores técnicos
         nome = funcao.__name__
         if nome == "calcular_atr":
-            from datetime import datetime
             import os
             import csv
 
@@ -259,12 +233,6 @@ def estrategia_curto_prazo(indicadores, ticker):
         notificacoes[ticker] = mensagem_lstm
         bot.send_message(CHAT_ID, mensagem_lstm)
         ultima_previsao_lstm[ticker] = proximo_valor
-
-from scipy.stats import zscore
-import numpy as np
-import pandas as pd
-from prophet import Prophet
-from flask import session
 
 def prever(indicadores, dias=5, freq=None):
     """
@@ -397,94 +365,6 @@ def gerar_visao_leiga_simplificada(tendencia):
 # =============================================================================
 # 7. Funções auxiliares de análise e gráficos
 # =============================================================================
-from openai import OpenAI
-
-# Criação do cliente com a chave da API
-client = OpenAI(api_key=OPENAI_API_KEY)
-
-import json
-
-def analise_com_gpt(ticker, df, previsao_df):
-    """
-    Gera uma análise técnica estruturada com base em indicadores e previsão.
-    A resposta vem em Markdown e depois é separada por tópicos para preenchimento dinâmico.
-    """
-
-    # ✅ Proteção contra dataframe ausente ou incompleto
-    if previsao_df is None or previsao_df.empty or "yhat" not in previsao_df.columns:
-        return {"erro": "Previsão indisponível ou incompleta."}
-
-    ultimos_precos = df['Close'].tail(3).values.tolist()
-    rsi_atual = df['RSI'].iloc[-1]
-    sma20 = df['SMA20'].iloc[-1]
-    upper_band = df['UpperBand'].iloc[-1]
-    lower_band = df['LowerBand'].iloc[-1]
-
-    n = min(5, len(previsao_df))
-    valores_previstos = previsao_df['yhat'].tail(n).tolist()
-
-    # Substitui qualquer valor negativo por zero e formata com "R$"
-    valores_filtrados = [max(0, v) for v in valores_previstos]
-    valores_formatados = ', '.join([f"R$ {v:.2f}" for v in valores_filtrados])
-    valores_html = '<br>'.join([f"• R$ {v:.2f}" for v in valores_filtrados])
-
-    prompt = f"""
-    ocê é um analista técnico que deve fornecer uma análise clara, em português, separada nos seguintes tópicos:
-
-    📊 Indicadores Técnicos  
-    📉 Tendência Atual  
-    🔮 Cenário Projetado  
-    📌 Estratégia  
-    🛡 Gestão de Risco  
-
-    No final, inclua o seguinte aviso padrão:
-    > _Esta análise é gerada automaticamente com base em indicadores técnicos públicos. Não constitui recomendação de investimento ou consultoria financeira. Para decisões de investimento, consulte um profissional autorizado pela CVM._
-
-    Dados:
-    - Ativo: {ticker}
-    - Fechamentos recentes: {ultimos_precos}
-    - RSI atual: {rsi_atual:.2f}
-    - SMA20: {sma20:.2f}
-    - Bollinger: superior={upper_band:.2f}, inferior={lower_band:.2f}
-    - Previsão (Prophet): Os valores projetados para os próximos dias são exatamente: {valores_formatados}. Liste-os sem alterar ou modificar.
-    """
-
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    texto = response.choices[0].message.content
-
-    # Separar os tópicos usando os emojis como delimitadores
-    import re
-    padrao_titulos = r"(?:📊 Indicadores Técnicos|📉 Tendência Atual|🔮 Cenário Projetado|📌 Estratégia|🛡 Gestão de Risco)"
-    partes = re.split(padrao_titulos, texto)
-    partes = [p.strip() for p in partes if p.strip()]
-
-    resultado = {
-        "indicadores": partes[0] if len(partes) > 0 else "",
-        "tendencia": partes[1] if len(partes) > 1 else "",
-        "previsao": partes[2] if len(partes) > 2 else "",
-        "estrategia": partes[3] if len(partes) > 3 else "",
-        "risco": partes[4] if len(partes) > 4 else "",
-        "aviso": partes[5] if len(partes) > 5 else "_Esta análise é gerada automaticamente com base em indicadores técnicos públicos. Não constitui recomendação de investimento ou consultoria financeira. Para decisões de investimento, consulte um profissional autorizado pela CVM._",
-    
-        # ✅ Nova chave: versão da IA em linguagem natural
-        "visao_leiga": partes[6] if len(partes) > 6 else gerar_visao_leiga_simplificada(partes[1])
-    }
-
-    return resultado
-
-def analise_fallback():
-    return {
-        "indicadores": "_Indicadores indisponíveis no momento._",
-        "tendencia": "Não foi possível determinar a tendência atual.",
-        "previsao": "Sem previsão disponível no momento.",
-        "estrategia": "Nenhuma estratégia sugerida foi gerada.",
-        "risco": "Cenário de risco não definido.",
-        "aviso": "_Esta análise está incompleta por instabilidade no sistema de IA. Tente novamente mais tarde._"
-    }
 
 def sentimento_noticias(texto):
     """
@@ -549,11 +429,8 @@ def interpretar_indicadores(rsi, sma20, preco_atual, upper, lower):
 @app.route("/previsao_custom")
 def previsao_custom():
     from datetime import datetime
-    from utils.mensagem_estrategia import gerar_explicacao_estrategia, gerar_conclusao_dinamica
-    from utils.indicadores_avancados import calcular_adx, calcular_cci, calcular_vwap, calcular_atr
-    from utils.dados_com_fallback import obter_dados_com_fallback
-    from utils.indicadores import gerar_microtendencia
-
+    from utils.mensagem_estrategia import gerar_conclusao_dinamica
+    
     # 🔐 Função universal de proteção numérica
     def seguro_float(valor):
         try:
@@ -569,6 +446,11 @@ def previsao_custom():
     # Parâmetros da URL
     ticker = request.args.get("ticker")
     periodo = request.args.get("periodo", "5d")
+    # [MOEDA] Detectar mercado/moeda e criar formatador
+    mercado = detectar_mercado(ticker)
+    moeda_sigla = moeda_por_mercado(mercado)     # 'USD' ou 'BRL'
+    moeda_simbolo = simbolo_moeda(moeda_sigla)   # 'US$' ou 'R$'
+    fmt = make_fmt(moeda_sigla)
 
     # Intervalos
     periodos_map = {
@@ -814,7 +696,7 @@ def previsao_custom():
                 forecaster.carregar_dados()
                 forecaster.treinar()
             previsoes_lstm = forecaster.prever(dias=dias)
-        except Exception as e:
+        except Exception:
             previsoes_lstm = None
 
         previsoes_prophet = previsao[['yhat']].tail(3).to_dict(orient='records') if previsao is not None else []
@@ -1021,31 +903,6 @@ def analisar_modelos_combinados(previsoes_lstm, previsoes_prophet):
         "media_ponderada": media_ponderada
     }
 
-def interpretar_indicadores(rsi, sma20, preco_atual, upper, lower):
-    insights = []
-
-    # RSI com fallback neutro
-    if rsi < 35:
-        insights.append(f"<strong>RSI em {rsi}:</strong> A ação está entrando em zona de possível desconto. Pode ser oportunidade com cautela.")
-    elif rsi > 65:
-        insights.append(f"<strong>RSI em {rsi}:</strong> O ativo está próximo de sobrecompra. Pode haver resistência ou correção.")
-    else:
-        insights.append(f"<strong>RSI em {rsi}:</strong> O indicador está em uma zona neutra. O mercado não demonstra força clara no momento.")
-
-    # SMA20
-    if preco_atual < sma20:
-        insights.append("<strong>Preço abaixo da média de 20 dias:</strong> Indica tendência de baixa no curto prazo.")
-    else:
-        insights.append("<strong>Preço acima da média de 20 dias:</strong> Indica força no curto prazo.")
-
-    # Bollinger
-    if preco_atual <= lower:
-        insights.append("<strong>Preço próximo da banda inferior:</strong> Pode ser sinal de possível fundo — mas cuidado com falsas esperanças.")
-    elif preco_atual >= upper:
-        insights.append("<strong>Preço próximo da banda superior:</strong> Pode estar esticado. Atenção a reversões.")
-
-    return insights
-
 def interpretar_convergencia_com_fibonacci(media_ponderada, fibonacci):
     """
     Compara a média ponderada com os níveis de Fibonacci.
@@ -1066,16 +923,8 @@ def interpretar_convergencia_com_fibonacci(media_ponderada, fibonacci):
 
     return "Fora de zonas críticas de Fibonacci"
 
-import os
-from flask import session, send_file, request, render_template
-from markupsafe import Markup
-from weasyprint import HTML
-from io import BytesIO
-from db import listar_previsoes
-
 @app.route('/exportar_pdf')
 def exportar_pdf():
-    from datetime import datetime  # ✅ Correção aqui
     ticker = request.args.get("ticker")
     if not ticker:
         return "Ticker não informado", 400
@@ -1209,7 +1058,6 @@ def exportar_pdf():
 
 @app.route("/exportar_pdf_custom")
 def exportar_pdf_custom():
-    from datetime import datetime
     from lstm_forecaster import CriptoForecaster
     from weasyprint import HTML
     from io import BytesIO
@@ -1241,9 +1089,9 @@ def exportar_pdf_custom():
         cenarios_dict = cenarios_df.to_dict(orient="records")
 
         if rsi > 70:
-            estrategia = calcular_estrategia_short(preco_atual, cenarios=cenarios_dict)
+            _ = calcular_estrategia_short(preco_atual, cenarios=cenarios_dict)
         else:
-            estrategia = calcular_estrategia_longa(preco_atual, cenarios=cenarios_dict)
+            _ = calcular_estrategia_longa(preco_atual, cenarios=cenarios_dict)
 
         try:
             forecaster = CriptoForecaster(ticker, janela=60, epochs=50)
@@ -1251,7 +1099,7 @@ def exportar_pdf_custom():
             forecaster.treinar()
             previsoes_lstm = forecaster.prever(dias=5)
             previsoes_lstm = [float(v) for v in previsoes_lstm]
-        except:
+        except Exception:
             previsoes_lstm = None
 
         caminho_banner = os.path.abspath("static/logo_banner.png")
@@ -1302,7 +1150,6 @@ def home():
 # =============================================================================
 # 10. Configuração do Scheduler (tarefas agendadas)
 # =============================================================================
-from apscheduler.schedulers.background import BackgroundScheduler
 
 scheduler = BackgroundScheduler()
 
@@ -1313,9 +1160,14 @@ scheduler.start()
 
 @app.route("/relatorio")
 def relatorio():
-    from datetime import datetime
 
     ticker = request.args.get("ticker")
+    # [MOEDA] Detectar mercado/moeda e criar formatador
+    mercado = detectar_mercado(ticker)
+    moeda_sigla = moeda_por_mercado(mercado)
+    moeda_simbolo = simbolo_moeda(moeda_sigla)
+    fmt = make_fmt(moeda_sigla)
+
     usuario = session.get("usuario")
 
     if not ticker:
@@ -1383,7 +1235,7 @@ def relatorio():
 
     valores_previstos_raw = previsao_df['yhat'].tail(5)
     valores_filtrados = [max(0, v) for v in valores_previstos_raw]
-    valores_html = "<ul>" + "".join([f"<li>R$ {v:.2f}</li>" for v in valores_filtrados]) + "</ul>"
+    valores_html = "<ul>" + "".join([f"<li>{fmt(v)}</li>" for v in valores_filtrados]) + "</ul>"
 
     historico_html = ""
     if usuario:
@@ -1392,7 +1244,7 @@ def relatorio():
             for p in previsoes:
                 historico_html += f"""
                 <tr><td>{p[0]}</td><td>{p[1]}</td><td>{p[2]}</td>
-                <td>R$ {float(p[3]):.2f}</td><td>{p[4]}</td></tr>
+                <td>{fmt(float(p[3]))}</td><td>{p[4]}</td></tr>
                 """
         elif usuario.get("plano") == "basico":
             historico_html = "<tr><td colspan='5'>Plano básico não inclui histórico. <a href='#'>Faça upgrade.</a></td></tr>"
@@ -1609,10 +1461,6 @@ def historico_previsoes():
         erro_logger.error(f"Erro ao listar histórico de previsões: {str(e)}")
         return jsonify({"erro": "Erro interno ao consultar histórico."}), 500
 
-import plotly.express as px
-import pandas as pd
-import numpy as np
-
 def teste_grafico_express():
     # Criando dados de teste
     datas = pd.date_range(start="2024-12-01", periods=60)
@@ -1632,9 +1480,6 @@ def teste_grafico_express():
     fig.update_layout(template="plotly_dark", height=400)
 
     fig.show()
-
-from db import criar_tabela
-criar_tabela()
 
 # =============================================================================
 # 11. Execução da aplicação Flask

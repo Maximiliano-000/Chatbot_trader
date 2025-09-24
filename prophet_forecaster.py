@@ -3,13 +3,13 @@ import csv
 import logging
 import pandas as pd
 from prophet import Prophet
-from prophet.diagnostics import cross_validation, performance_metrics
 from datetime import datetime
 from utils.dados_utils import preparar_dados_prophet
 from utils.previsao_utils import preencher_volume_futuro
 from utils.forecast_evaluation import residuals_diagnostics, cv_summary, backtest_evaluate
 from utils.indicadores import calcular_indicadores
 from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
 
 def ajustar_changepoint_dinamico(df, escalas=[0.01, 0.05, 0.1, 0.15]):
     melhores_metricas = []
@@ -31,6 +31,27 @@ def ajustar_changepoint_dinamico(df, escalas=[0.01, 0.05, 0.1, 0.15]):
         raise RuntimeError("Nenhuma escala válida encontrada para o modelo.")
     melhor_escala = min(melhores_metricas, key=lambda x: x[1])[0]
     return melhor_escala
+
+def walk_forward_prophet(df, folds=3, horizon=10, freq="D"):
+    """Walk-forward simples: corta o final em folds, prevê horizon e mede erro."""
+    if len(df) < folds * horizon + 30:
+        return None, None
+    rmse, mape = [], []
+    for k in range(folds, 0, -1):
+        split = len(df) - k * horizon
+        train, test = df.iloc[:split], df.iloc[split:split + horizon]
+        m = Prophet()
+        m.fit(train)
+        fut = m.make_future_dataframe(periods=horizon, freq=freq)
+        pred = m.predict(fut).set_index("ds")["yhat"].reindex(test["ds"])
+        test2 = test.set_index("ds").join(pred.rename("yhat")).dropna()
+        if test2.empty:
+            continue
+        rmse.append(mean_squared_error(test2["y"], test2["yhat"]) ** 0.5)
+        mape.append(mean_absolute_percentage_error(test2["y"], test2["yhat"]))
+    if not rmse:
+        return None, None
+    return float(sum(rmse) / len(rmse)), float(sum(mape) / len(mape))
 
 def ajustar_previsao_com_bollinger(previsao_df, indicadores_df, margem_pct=0.5):
     """
@@ -102,6 +123,8 @@ def executar_pipeline_completo(ticker: str, dados: pd.DataFrame, dias: int = 5, 
         logging.warning(f"⚠️ Erro ao calcular métricas Prophet: {e}")
         metrics_bt = {"RMSE": 0, "MAPE": 0}
 
+    wf_rmse, wf_mape = walk_forward_prophet(df_prophet, folds=3, horizon=max(5, dias), freq=freq)
+
     try:
         cv_summary(modelo, initial='60 days', period='15 days', horizon='5 days')
     except Exception as e:
@@ -145,25 +168,27 @@ def executar_pipeline_completo(ticker: str, dados: pd.DataFrame, dias: int = 5, 
     nome_arquivo = f"previsoes_prophet/prophet_{ticker.replace('-', '').replace('/', '')}.csv"
     df_exportar.to_csv(nome_arquivo, index=False)
 
-    # Salve métrica
+    # Salve métrica (inclui walk-forward)
     salvar_metrica(
         ticker,
         metrics_bt["RMSE"],
         metrics_bt["MAPE"],
         changepoint_scale,
         df_exportar["ds"].min(),
-        df_exportar["ds"].max()
+        df_exportar["ds"].max(),
+        wf_rmse,
+        wf_mape
     )
 
     # ✅ Retorne DataFrame seguro para o main.py (sem desalinhamentos!)
     return df_exportar[["ds", "yhat", "yhat_lower", "yhat_upper"]]
 
-def salvar_metrica(ticker, rmse, mape, scale, inicio, fim):
+def salvar_metrica(ticker, rmse, mape, scale, inicio, fim, wf_rmse=None, wf_mape=None):
     caminho = "resultados_prophet.csv"
     if not os.path.exists(caminho):
         with open(caminho, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["DataExecucao", "Ticker", "RMSE", "MAPE", "BestScale", "PrevisaoInicio", "PrevisaoFim"])
+            writer.writerow(["DataExecucao", "Ticker", "RMSE", "MAPE", "BestScale", "PrevisaoInicio", "PrevisaoFim", "WF_RMSE", "WF_MAPE"])
 
     with open(caminho, "a", newline="") as f:
         writer = csv.writer(f)
@@ -174,5 +199,7 @@ def salvar_metrica(ticker, rmse, mape, scale, inicio, fim):
             round(mape, 6),
             scale,
             inicio.strftime("%Y-%m-%d %H:%M:%S"),
-            fim.strftime("%Y-%m-%d %H:%M:%S")
+            fim.strftime("%Y-%m-%d %H:%M:%S"),
+            (round(wf_rmse, 4) if wf_rmse is not None else ""),
+            (round(wf_mape, 6) if wf_mape is not None else "")
         ])

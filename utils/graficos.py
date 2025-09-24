@@ -1,8 +1,7 @@
 import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import base64
-import pandas as pd
-import numpy as np
 from io import BytesIO
 from prophet import Prophet
 from logger import uso_logger
