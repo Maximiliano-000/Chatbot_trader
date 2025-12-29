@@ -413,17 +413,16 @@
             </p>
             <p>
               <strong>Confiança estratégica:</strong>
-              <p><strong>Confiança estratégica:</strong>
-                {% if grau_confianca|lower == "alta" %}
-                  <span style="color: #4ade80; font-weight: bold;">🟢 Alta</span>
-                {% elif grau_confianca|lower == "média" %}
-                  <span style="color: #facc15; font-weight: bold;">🟡 Média</span>
-                {% elif grau_confianca|lower == "baixa" %}
-                  <span style="color: #f87171; font-weight: bold;">🔴 Baixa</span>
-                {% else %}
-                  ⚪ Indefinida
-                {% endif %}
-              </p>
+              {% if grau_confianca|lower == "alta" %}
+                <span style="color: #4ade80; font-weight: bold;">🟢 Alta</span>
+              {% elif grau_confianca|lower == "média" %}
+                <span style="color: #facc15; font-weight: bold;">🟡 Média</span>
+              {% elif grau_confianca|lower == "baixa" %}
+                <span style="color: #f87171; font-weight: bold;">🔴 Baixa</span>
+              {% else %}
+                ⚪ Indefinida
+              {% endif %}
+            </p>
           </div>
         </div>
         

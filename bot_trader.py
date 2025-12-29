@@ -1,7 +1,18 @@
 # 🔧 Sistema e utilitários
 import os
+# Desabilitar GPU/Metal para evitar erros no Mac M1/M2
 os.environ.setdefault("DYLD_LIBRARY_PATH", "/opt/homebrew/lib")
 os.environ.setdefault("PKG_CONFIG_PATH", "/opt/homebrew/lib/pkgconfig")
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reduzir logs do TensorFlow
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Desabilitar CUDA
+
+# Configurar TensorFlow para usar CPU
+try:
+    import tensorflow as tf
+    tf.config.set_visible_devices([], 'GPU')  # Desabilitar GPU/Metal
+except:
+    pass
+
 from datetime import datetime
 from io import BytesIO
 
