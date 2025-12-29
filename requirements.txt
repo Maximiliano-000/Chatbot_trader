@@ -27,4 +27,4 @@ pyTelegramBotAPI==4.26.0
 weasyprint==53.0
 
 # === Machine Learning ===
-scikit-learn==1.3.2  # ⚠️ Pode falhar em Macs M1/M2 se usado via pip
+scikit-learn==1.6.1  # ⚠️ Pode falhar em Macs M1/M2 se usado via pip

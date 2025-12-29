@@ -1,11 +1,21 @@
 # 🔧 Sistema e utilitários
 import os
+os.environ.setdefault("DYLD_LIBRARY_PATH", "/opt/homebrew/lib")
+os.environ.setdefault("PKG_CONFIG_PATH", "/opt/homebrew/lib/pkgconfig")
 from datetime import datetime
 from io import BytesIO
 
 # 🔐 .env
 from dotenv import load_dotenv
-load_dotenv()
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ENV_PATH = os.path.join(BASE_DIR, ".env")
+
+load_dotenv(dotenv_path=ENV_PATH, override=True)
+
+print("ENV_PATH:", ENV_PATH)
+print("TWELVE_DATA_API_KEY:", os.getenv("TWELVE_DATA_API_KEY"))
 
 # 📊 Dados e análise
 import numpy as np
@@ -53,11 +63,9 @@ from utils.graficos import gerar_grafico
 from utils.dados_com_fallback import obter_dados_com_fallback
 from utils.moeda import detectar_mercado, moeda_por_mercado, simbolo_moeda, make_fmt
 from utils.sinais import interpretar_sinais_tecnicos
+from utils.fibonacci import interpretar_fibonacci_decisorio
 from prophet_forecaster import executar_pipeline_completo
 from lstm_forecaster import CriptoForecaster
-
-os.environ.setdefault("DYLD_LIBRARY_PATH", "/opt/homebrew/lib")
-os.environ.setdefault("PKG_CONFIG_PATH", "/opt/homebrew/lib/pkgconfig")
 
 def calcular_score_adaptativo(ticker, intervalo, periodo, dias=5):
     # Carrega dados usando yfinance com fallback Twelve Data
@@ -65,7 +73,6 @@ def calcular_score_adaptativo(ticker, intervalo, periodo, dias=5):
 
     # Previsões dos modelos
     previsao_prophet = executar_pipeline_completo(ticker, dados=dados, dias=dias)
-    previsao_lstm = prever_lstm(dados, janela=60, dias=dias)
 
     # Classifica as previsões
     classificacao_prophet = "Alta" if previsao_prophet['yhat'].iloc[-1] > dados['Close'].iloc[-1] else "Baixa"
@@ -111,6 +118,7 @@ def calcular_score_adaptativo(ticker, intervalo, periodo, dias=5):
         score_indicadores * pesos["indicadores"],
         2
     )
+    print(f"[ENSEMBLE] Pesos usados para {ticker} ({intervalo}): {pesos} -> Score final: {score_final}")
 
     return score_final
 
@@ -426,11 +434,91 @@ def interpretar_indicadores(rsi, sma20, preco_atual, upper, lower):
 
     return insights
 
+def analisar_modelos_combinados(previsoes_lstm, previsoes_prophet):
+    """
+    Compara previsões LSTM (timing / curto prazo) e Prophet (estrutura / contexto).
+    Retorna:
+      - tendencia_combinada: string amigável para o relatório
+      - tipo: rótulo semântico (Convergente / Multi-horizonte / Dados insuficientes)
+      - media_ponderada: preço médio ponderado
+      - direcao_lstm / direcao_prophet: para explicações curtas no template
+      - leitura_mh_curta: texto explicativo curto quando for Multi-horizonte
+    """
+    base_insuf = {
+        "tendencia_combinada": "Indefinida",
+        "tipo": "Dados insuficientes",
+        "media_ponderada": None,
+        "direcao_lstm": None,
+        "direcao_prophet": None,
+        "leitura_mh_curta": ""
+    }
+
+    if not previsoes_lstm or not previsoes_prophet:
+        return base_insuf
+
+    # Últimas previsões (3 últimos pontos)
+    try:
+        lstm_vals = [float(p["valor"]) if isinstance(p, dict) else float(p) for p in previsoes_lstm[-3:]]
+        prophet_vals = [float(p["yhat"]) for p in previsoes_prophet[-3:]]
+    except Exception:
+        return base_insuf
+
+    if len(lstm_vals) < 2 or len(prophet_vals) < 2:
+        return base_insuf
+
+    # Médias
+    media_lstm = sum(lstm_vals) / len(lstm_vals)
+    media_prophet = sum(prophet_vals) / len(prophet_vals)
+
+    # Média ponderada (ajustável)
+    media_ponderada = round((0.6 * media_lstm + 0.4 * media_prophet), 2)
+
+    # Direção (compara último com o primeiro do recorte)
+    direcao_lstm = "alta" if lstm_vals[-1] > lstm_vals[0] else "baixa" if lstm_vals[-1] < lstm_vals[0] else "neutra"
+    direcao_prophet = "alta" if prophet_vals[-1] > prophet_vals[0] else "baixa" if prophet_vals[-1] < prophet_vals[0] else "neutra"
+
+    leitura_mh_curta = ""
+
+    # Classificação semântica
+    if direcao_lstm == "alta" and direcao_prophet == "alta":
+        tipo = "Convergente (alta)"
+        tendencia_combinada = "📈 Convergente (alta)"
+
+    elif direcao_lstm == "baixa" and direcao_prophet == "baixa":
+        tipo = "Convergente (baixa)"
+        tendencia_combinada = "📉 Convergente (baixa)"
+
+    else:
+        tipo = "Multi-horizonte"
+        tendencia_combinada = "🧭 Multi-horizonte (curto prazo vs estrutura)"
+
+        leitura_mh_curta = (
+            f"Curto prazo (LSTM): viés de {direcao_lstm}. "
+            f"Estrutura (Prophet): {direcao_prophet}. "
+            "Não há conflito entre modelos, mas diferença de horizonte temporal. "
+            "O cenário favorece apenas operações curtas, seletivas e bem protegidas, "
+            "enquanto operações direcionais exigem confirmação estrutural."
+        )
+
+    return {
+        "tendencia_combinada": tendencia_combinada,
+        "tipo": tipo,
+        "media_ponderada": media_ponderada,
+        "direcao_lstm": direcao_lstm,
+        "direcao_prophet": direcao_prophet,
+        "leitura_mh_curta": leitura_mh_curta
+    }
+
 @app.route("/previsao_custom")
 def previsao_custom():
     from datetime import datetime
+    import pandas as pd
+    import math
+
     from utils.mensagem_estrategia import gerar_conclusao_dinamica
-    
+    from utils.dados_com_fallback import obter_preco_atual_binance
+    from utils.fibonacci import interpretar_fibonacci_decisorio  # ajuste o caminho se estiver diferente
+
     # 🔐 Função universal de proteção numérica
     def seguro_float(valor):
         try:
@@ -443,14 +531,31 @@ def previsao_custom():
         except Exception:
             return 0.0
 
+    # 🔒 Defaults de segurança (evita NameError / Pylance)
+    media_ponderada = 0.0
+    fibonacci = {}
+    comentario_fibonacci = ""
+    fibo_confluencia = False
+    fibo_nivel = None
+    fibo_tipo = None
+
+    tipo_estrategia = "neutro"
+    contexto = "indefinido"
+    estrategia = {}
+    previsoes_lstm = None
+
     # Parâmetros da URL
     ticker = request.args.get("ticker")
     periodo = request.args.get("periodo", "5d")
+
+    if not ticker:
+        return jsonify({"erro": "Ticker não informado."}), 400
+
     # [MOEDA] Detectar mercado/moeda e criar formatador
     mercado = detectar_mercado(ticker)
     moeda_sigla = moeda_por_mercado(mercado)     # 'USD' ou 'BRL'
     moeda_simbolo = simbolo_moeda(moeda_sigla)   # 'US$' ou 'R$'
-    fmt = make_fmt(moeda_sigla)
+    fmt = make_fmt(moeda_sigla)                  # usado no Fibonacci decisório
 
     # Intervalos
     periodos_map = {
@@ -461,41 +566,27 @@ def previsao_custom():
     }
 
     intervalo_api = periodos_map.get(periodo, "1day")
-    # ✅ Inclusão exata para obter dados da Binance caso ticker termine com "-USD"
+
+    # ============================
+    # 1) DADOS: Binance (primária) -> fallback (somente se vazio)
+    # ============================
+    dados = pd.DataFrame()
+    intervalo_utilizado = intervalo_api
+    mensagem_intervalo = None
+
     if ticker.endswith("-USD"):
-        symbol = ticker.replace("-USD", "USDT")
-        dados = obter_dados_binance(symbol=symbol, interval=intervalo_api, limit=130)
-        intervalo_utilizado = intervalo_api
-        mensagem_intervalo = None
+        try:
+            symbol = ticker.replace("-USD", "USDT")
+            dados = obter_dados_binance(symbol=symbol, interval=intervalo_api, limit=130)
+            intervalo_utilizado = intervalo_api
+            mensagem_intervalo = None
+        except Exception as e:
+            uso_logger.warning(f"⚠️ Falha ao obter dados da Binance para {ticker}: {e}")
+            dados = pd.DataFrame()
 
-    # fallback automático se Binance falhar
+    # fallback apenas se veio vazio (independente da fonte)
     if dados.empty:
-        uso_logger.warning(f"⚠️ Dados Binance vazios para {ticker}, usando fallback.")
-        dados, _, intervalo_utilizado, mensagem_intervalo = obter_dados_com_fallback(
-            ticker=ticker,
-            intervalo=intervalo_api,
-            periodo=periodo,
-            preferencia="twelve"  # ⚡ usa fonte mais atualizada para relatório sob demanda
-        )
-
-    # ✅ DIAGNÓSTICO IMEDIATO (versão melhorada)
-    if dados.empty or 'Close' not in dados.columns or dados['Close'].dropna().empty:
-        uso_logger.error(
-            f"❌ Erro crítico para {ticker}. Dados vazios ou coluna Close insuficiente. "
-            f"Colunas recebidas: {dados.columns.tolist()}, tamanho dos dados: {len(dados)}, "
-            f"Quantidade de valores válidos em 'Close': {dados['Close'].dropna().shape[0]}, "
-            f"Mensagem do fallback: {mensagem_intervalo}."
-        )
-        return jsonify({
-            "erro": "Dados insuficientes ou coluna 'Close' ausente.",
-            "colunas_recebidas": dados.columns.tolist(),
-            "tamanho_dos_dados": len(dados),
-            "valores_validos_close": dados['Close'].dropna().shape[0],
-            "mensagem_fallback": mensagem_intervalo
-        }), 400
-
-    else:
-        # caso geral, usar o método original
+        uso_logger.warning(f"⚠️ Dados primários vazios para {ticker}, usando fallback.")
         dados, _, intervalo_utilizado, mensagem_intervalo = obter_dados_com_fallback(
             ticker=ticker,
             intervalo=intervalo_api,
@@ -503,45 +594,65 @@ def previsao_custom():
             preferencia="twelve"
         )
 
-    # Validação imediata e robusta da coluna "Close"
-    if dados.empty or "Close" not in dados.columns:
-        erro_logger.error(f"⚠️ Dados insuficientes ou coluna 'Close' ausente para {ticker}. Colunas obtidas: {dados.columns.tolist()}")
-        return jsonify({"erro": "Dados insuficientes ou coluna 'Close' ausente."}), 400
+    # Diagnóstico imediato
+    if dados.empty or "Close" not in dados.columns or dados["Close"].dropna().empty:
+        uso_logger.error(
+            f"❌ Erro crítico para {ticker}. Dados vazios ou coluna Close insuficiente. "
+            f"Colunas recebidas: {dados.columns.tolist()}, tamanho: {len(dados)}, "
+            f"Close válidos: {dados['Close'].dropna().shape[0] if 'Close' in dados.columns else 0}, "
+            f"Mensagem fallback: {mensagem_intervalo}."
+        )
+        return jsonify({
+            "erro": "Dados insuficientes ou coluna 'Close' ausente.",
+            "colunas_recebidas": dados.columns.tolist(),
+            "tamanho_dos_dados": len(dados),
+            "valores_validos_close": dados["Close"].dropna().shape[0] if "Close" in dados.columns else 0,
+            "mensagem_fallback": mensagem_intervalo
+        }), 400
 
     quantidade_candles = len(dados)
 
-    dias_map = {
-        "1day": 5, "15min": 90, "30min": 48, "1h": 24
-    }
+    dias_map = {"1day": 5, "15min": 90, "30min": 48, "1h": 24}
     dias = dias_map.get(intervalo_utilizado or intervalo_api, 5)
 
     if dados.empty:
-        return render_template("relatorio_custom.html",
-            modo="html", erro_dados=True, ticker=ticker, periodo=periodo,
+        return render_template(
+            "relatorio_custom.html",
+            modo="html",
+            erro_dados=True,
+            ticker=ticker,
+            periodo=periodo,
             quantidade_candles=quantidade_candles,
-            datahora=datetime.now().strftime('%d/%m/%Y %H:%M'),
-            aviso="", grafico=None, cenarios="", analise="", conclusao_final="",
+            datahora=datetime.now().strftime("%d/%m/%Y %H:%M"),
+            aviso="",
+            grafico=None,
+            cenarios="",
+            analise="",
+            conclusao_final="",
             mensagem_intervalo=mensagem_intervalo,
-            fibonacci={} 
+            comentario_fibonacci="",
+            moeda=moeda_simbolo
         )
 
+    # ============================
+    # 2) PROCESSAMENTO / RELATÓRIO
+    # ============================
     try:
         indicadores = calcular_indicadores(dados, intervalo=intervalo_utilizado)
-        indicadores["Volume"] = indicadores.get("Volume", pd.Series(dtype='float64')).fillna(method='ffill').fillna(method='bfill')
 
-        # 🚨 Diagnóstico detalhado do DataFrame indicadores
-        if indicadores.empty or "Close" not in indicadores.columns:
+        vol = indicadores.get("Volume", pd.Series(dtype="float64"))
+        indicadores["Volume"] = vol.ffill().bfill()
+
+        if indicadores.empty or "Close" not in indicadores.columns or indicadores["Close"].dropna().empty:
             uso_logger.error(
                 f"🛑 Problema em calcular_indicadores() para {ticker}. "
-                f"DataFrame indicadores vazio: {indicadores.empty}, "
-                f"Colunas obtidas: {indicadores.columns.tolist()}, "
-                f"Valores válidos em 'Close': {indicadores['Close'].dropna().shape[0] if 'Close' in indicadores.columns else 'Coluna ausente'}"
+                f"vazio={indicadores.empty}, colunas={indicadores.columns.tolist()}"
             )
             return jsonify({
-                "erro": "Indicadores insuficientes ou coluna 'Close' ausente após cálculo dos indicadores.",
+                "erro": "Indicadores insuficientes ou coluna 'Close' ausente após cálculo.",
                 "indicadores_vazio": indicadores.empty,
                 "colunas_recebidas": indicadores.columns.tolist(),
-                "valores_validos_close": indicadores['Close'].dropna().shape[0] if 'Close' in indicadores.columns else 'Coluna ausente'
+                "valores_validos_close": indicadores["Close"].dropna().shape[0] if "Close" in indicadores.columns else 0
             }), 400
 
         previsao = executar_pipeline_completo(
@@ -551,70 +662,83 @@ def previsao_custom():
             freq=intervalo_utilizado
         )
 
+        # Indicadores avançados (com seu wrapper "seguro")
         adx = seguro(calcular_adx, dados)
         cci = seguro(calcular_cci, dados)
         vwap = seguro(lambda x: calcular_vwap(x, silenciar=True), dados)
-        atr = seguro(calcular_atr, dados)
-        preco_atual = seguro_float(dados["Close"].iloc[-1])
-        # 🎯 Alvo e Stop sugeridos com base no ATR
-        tp_sugerido = round(preco_atual + (atr * 1.2), 4)
-        sl_sugerido = round(preco_atual - (atr * 1.5), 4)
+        atr_raw = seguro(calcular_atr, dados)
 
-        if isinstance(atr, dict):
-            atr = atr.get("valor") or 0.0
+        # ATR normalizado (antes de TP/SL)
+        if isinstance(atr_raw, dict):
+            atr_val = atr_raw.get("valor") or 0.0
+        else:
+            atr_val = atr_raw
         try:
-            atr = float(atr)
+            atr_val = float(atr_val)
+            if math.isnan(atr_val) or math.isinf(atr_val):
+                atr_val = 0.0
         except Exception:
-            atr = 0.0
+            atr_val = 0.0
+
+        # Preço atual (binance se cripto -USD, senão do dataframe)
+        preco_atual = seguro_float(indicadores["Close"].iloc[-1])
+        if ticker.endswith("-USD"):
+            try:
+                symbol = ticker.replace("-USD", "USDT")
+                preco_bin = obter_preco_atual_binance(symbol)
+                preco_atual = preco_bin if preco_bin and preco_bin > 0 else preco_atual
+            except Exception:
+                pass
+
+        # TP/SL sugeridos (ATR)
+        tp_sugerido = round(preco_atual + (atr_val * 1.2), 4)
+        sl_sugerido = round(preco_atual - (atr_val * 1.5), 4)
 
         analise = analise_com_gpt(ticker, indicadores, previsao)
 
-        rsi = seguro_float(indicadores['RSI'].iloc[-1])
-        sma20 = seguro_float(indicadores['SMA20'].iloc[-1])
-        sma50 = seguro_float(indicadores['SMA50'].iloc[-1])
-        upper_raw = indicadores['UpperBand'].iloc[-1]
-        lower_raw = indicadores['LowerBand'].iloc[-1]
+        rsi = seguro_float(indicadores["RSI"].iloc[-1])
+        sma20 = seguro_float(indicadores["SMA20"].iloc[-1])
+        sma50 = seguro_float(indicadores["SMA50"].iloc[-1])
 
-        upper_band = seguro_float(upper_raw)
-        lower_band = seguro_float(lower_raw)
+        upper_band = seguro_float(indicadores["UpperBand"].iloc[-1])
+        lower_band = seguro_float(indicadores["LowerBand"].iloc[-1])
+        volume_medio = seguro_float(indicadores["Volume_Medio"].iloc[-1])
 
-        volume_medio = seguro_float(indicadores['Volume_Medio'].iloc[-1])
-        
-        from utils.dados_com_fallback import obter_preco_atual_binance
-        if ticker.endswith("-USD"):
-            symbol = ticker.replace("-USD", "USDT")
-            preco_atual_binance = obter_preco_atual_binance(symbol)
-            preco_atual = preco_atual_binance if preco_atual_binance > 0 else seguro_float(indicadores['Close'].iloc[-1])
-        else:
-            preco_atual = seguro_float(indicadores['Close'].iloc[-1])
-
-        preco_max = indicadores['Close'].max()
-        preco_min = indicadores['Close'].min()
-
+        # Fibonacci (base)
+        preco_max = float(indicadores["Close"].max())
+        preco_min = float(indicadores["Close"].min())
         fibonacci = calcular_fibonacci(preco_min, preco_max)
+
         insights_tecnicos = interpretar_indicadores(rsi, sma20, preco_atual, upper_band, lower_band)
-        conclusao_final = gerar_conclusao_dinamica(analise.get("tendencia", ""), rsi, preco_atual, sma20)
+
+        conclusao_final = gerar_conclusao_dinamica(
+            analise.get("tendencia", ""),
+            rsi,
+            preco_atual,
+            sma20,
+            moeda=moeda_simbolo
+        )
 
         cenarios_df = gerar_cenarios_alternativos(preco_atual)
         cenarios_html = cenarios_df.to_html(index=False, classes="table", border=0)
         cenarios_dict = cenarios_df.to_dict(orient="records")
-        
-        print(f"Debug RSI: {rsi}, ADX: {adx}, CCI: {cci}, ATR: {atr}")
 
-        intervalos_rigorosos = ['3h', '4h', '6h', '12h', '1d']
+        print(f"Debug RSI: {rsi}, ADX: {adx}, CCI: {cci}, ATR: {atr_val}")
 
-        # Aplicar controle de segurança apenas se intervalo estiver entre os rigorosos
+        # ============================
+        # 3) LÓGICA DE ESTRATÉGIA
+        # ============================
+        intervalos_rigorosos = ["3h", "4h", "6h", "12h", "1d"]
         usar_seguranca = periodo in intervalos_rigorosos
 
         if usar_seguranca:
-            # Contexto com controle de segurança rigoroso
             if rsi < 40:
                 if adx > 15 and preco_atual > sma20 and preco_atual > sma50:
-                    estrategia = calcular_estrategia_longa(preco_atual, atr=atr, ticker=ticker, cenarios=cenarios_dict)
+                    estrategia = calcular_estrategia_longa(preco_atual, atr=atr_val, ticker=ticker, cenarios=cenarios_dict)
                     tipo_estrategia = "long"
                     contexto = "reversao confirmada robusta"
                 elif adx > 15 and preco_atual > sma20:
-                    estrategia = calcular_estrategia_longa(preco_atual, atr=atr, ticker=ticker, cenarios=cenarios_dict)
+                    estrategia = calcular_estrategia_longa(preco_atual, atr=atr_val, ticker=ticker, cenarios=cenarios_dict)
                     tipo_estrategia = "long"
                     contexto = "reversao confirmada"
                 else:
@@ -624,11 +748,11 @@ def previsao_custom():
 
             elif rsi > 60:
                 if adx > 15 and preco_atual < sma20 and preco_atual < sma50:
-                    estrategia = calcular_estrategia_short(preco_atual, atr=atr, ticker=ticker, cenarios=cenarios_dict)
+                    estrategia = calcular_estrategia_short(preco_atual, atr=atr_val, ticker=ticker, cenarios=cenarios_dict)
                     tipo_estrategia = "short"
                     contexto = "sobrecompra confirmada robusta"
                 elif adx > 15 and preco_atual < sma20:
-                    estrategia = calcular_estrategia_short(preco_atual, atr=atr, ticker=ticker, cenarios=cenarios_dict)
+                    estrategia = calcular_estrategia_short(preco_atual, atr=atr_val, ticker=ticker, cenarios=cenarios_dict)
                     tipo_estrategia = "short"
                     contexto = "sobrecompra confirmada"
                 else:
@@ -636,50 +760,49 @@ def previsao_custom():
                     tipo_estrategia = "neutro"
                     contexto = "sobrecompra sem confirmação"
 
-            elif cci < -80 and atr > 3:
-                estrategia = calcular_estrategia_short(preco_atual, atr=atr, ticker=ticker, cenarios=cenarios_dict)
+            elif cci < -80 and atr_val > 3:
+                estrategia = calcular_estrategia_short(preco_atual, atr=atr_val, ticker=ticker, cenarios=cenarios_dict)
                 tipo_estrategia = "short"
                 contexto = "volatilidade"
 
             elif 50 < rsi <= 60 and preco_atual > sma20 and preco_atual > sma50:
-                estrategia = calcular_estrategia_longa(preco_atual, atr=atr, ticker=ticker, cenarios=cenarios_dict)
+                estrategia = calcular_estrategia_longa(preco_atual, atr=atr_val, ticker=ticker, cenarios=cenarios_dict)
                 tipo_estrategia = "long"
                 contexto = "forca robusta"
 
             elif 50 < rsi <= 60 and preco_atual > sma20:
-                estrategia = calcular_estrategia_longa(preco_atual, atr=atr, ticker=ticker, cenarios=cenarios_dict)
+                estrategia = calcular_estrategia_longa(preco_atual, atr=atr_val, ticker=ticker, cenarios=cenarios_dict)
                 tipo_estrategia = "long"
                 contexto = "forca"
 
             else:
-                estrategia = calcular_estrategia_longa(preco_atual, atr=atr, ticker=ticker, cenarios=cenarios_dict)
+                estrategia = calcular_estrategia_longa(preco_atual, atr=atr_val, ticker=ticker, cenarios=cenarios_dict)
                 tipo_estrategia = "long"
                 contexto = "neutro"
 
         else:
-            # Contexto simplificado (sem controle rigoroso)
             if rsi < 40 and validar_reversao_alta(indicadores):
-                estrategia = calcular_estrategia_longa(preco_atual, atr=atr, ticker=ticker, cenarios=cenarios_dict)
+                estrategia = calcular_estrategia_longa(preco_atual, atr=atr_val, ticker=ticker, cenarios=cenarios_dict)
                 tipo_estrategia = "long"
                 contexto = "reversao técnica confirmada"
 
             elif rsi > 60 and validar_reversao_baixa(indicadores):
-                estrategia = calcular_estrategia_short(preco_atual, atr=atr, ticker=ticker, cenarios=cenarios_dict)
+                estrategia = calcular_estrategia_short(preco_atual, atr=atr_val, ticker=ticker, cenarios=cenarios_dict)
                 tipo_estrategia = "short"
                 contexto = "sobrecompra confirmada"
 
-            elif cci < -80 and atr > 3:
-                estrategia = calcular_estrategia_short(preco_atual, atr=atr, ticker=ticker, cenarios=cenarios_dict)
+            elif cci < -80 and atr_val > 3:
+                estrategia = calcular_estrategia_short(preco_atual, atr=atr_val, ticker=ticker, cenarios=cenarios_dict)
                 tipo_estrategia = "short"
                 contexto = "volatilidade"
 
             elif 50 < rsi <= 60 and preco_atual > sma20 and preco_atual > sma50:
-                estrategia = calcular_estrategia_longa(preco_atual, atr=atr, ticker=ticker, cenarios=cenarios_dict)
+                estrategia = calcular_estrategia_longa(preco_atual, atr=atr_val, ticker=ticker, cenarios=cenarios_dict)
                 tipo_estrategia = "long"
                 contexto = "forca robusta"
 
             elif 50 < rsi <= 60 and preco_atual > sma20:
-                estrategia = calcular_estrategia_longa(preco_atual, atr=atr, ticker=ticker, cenarios=cenarios_dict)
+                estrategia = calcular_estrategia_longa(preco_atual, atr=atr_val, ticker=ticker, cenarios=cenarios_dict)
                 tipo_estrategia = "long"
                 contexto = "forca"
 
@@ -688,6 +811,9 @@ def previsao_custom():
                 tipo_estrategia = "neutro"
                 contexto = "sem confirmação técnica"
 
+        # ============================
+        # 4) LSTM + COMBINADA
+        # ============================
         try:
             forecaster = CriptoForecaster(ticker, janela=60, epochs=100)
             if forecaster.modelo_existente():
@@ -699,17 +825,47 @@ def previsao_custom():
         except Exception:
             previsoes_lstm = None
 
-        previsoes_prophet = previsao[['yhat']].tail(3).to_dict(orient='records') if previsao is not None else []
+        previsoes_prophet = previsao[["yhat"]].tail(3).to_dict(orient="records") if previsao is not None else []
         analise_combinada = analisar_modelos_combinados(previsoes_lstm, previsoes_prophet)
         media_ponderada = seguro_float(analise_combinada.get("media_ponderada", 0.0))
         preco_entrada = seguro_float(estrategia.get("preco_entrada", preco_atual))
+
         microtendencia = gerar_microtendencia(
             preco_atual=preco_entrada,
             previsoes_lstm=previsoes_lstm
         )
-        comentario_fibonacci = interpretar_convergencia_com_fibonacci(media_ponderada, fibonacci)
-        
-        reversao_confirmada = tipo_estrategia in ["short", "long"]
+
+        # 🔍 Leitura Multi-Horizonte (substitui "divergente")
+        if microtendencia and "alta" in microtendencia.lower() and "neutro" in analise_combinada.get("tipo", "").lower():
+            leitura_multihorizonte = (
+                "Curto prazo tenta alta (LSTM), enquanto a estrutura (Prophet) segue neutra. "
+                "Movimento tático de curto prazo, sem confirmação estrutural."
+        )
+        elif microtendencia and "queda" in microtendencia.lower() and "neutro" in analise_combinada.get("tipo", "").lower():
+            leitura_multihorizonte = (
+                "Curto prazo pressiona para baixo (LSTM), com estrutura ainda neutra. "
+                "Correção pontual dentro de um regime indefinido."
+        )
+        else:
+            leitura_multihorizonte = (
+                "Modelos operam em horizontes distintos, sem conflito direto. "
+                "Aguardar confirmação para movimentos direcionais."
+        )
+
+        # ✅ Fibonacci decisório (única fonte de verdade)
+        fibo_info = interpretar_fibonacci_decisorio(
+            media_ponderada=media_ponderada,
+            fibonacci=fibonacci,
+            fmt_preco=fmt,
+            tol_pct=0.0075
+        )
+
+        comentario_fibonacci = fibo_info.get("comentario", "")
+        fibo_confluencia = bool(fibo_info.get("existe_confluencia", False))
+        fibo_nivel = fibo_info.get("nivel")
+        fibo_tipo = fibo_info.get("tipo")
+
+        reversao_confirmada = (tipo_estrategia in ["short", "long"])
 
         grau_confiança = calcular_grau_confianca(
             tendencia_combinada=analise_combinada.get("tendencia_combinada", ""),
@@ -717,20 +873,20 @@ def previsao_custom():
             reversao_confirmada=reversao_confirmada
         )
 
-        # Gera explicação estratégica refinada com base no contexto atual
         estrategia_msg = gerar_explicacao_estrategia(
             tipo=tipo_estrategia,
             contexto=contexto,
             media_ponderada=media_ponderada,
             fibonacci=fibonacci,
             microtendencia=microtendencia,
-            tendencia_combinada=analise_combinada.get("tendencia_combinada", "")
+            tendencia_combinada=analise_combinada.get("tendencia_combinada", ""),
+            moeda=moeda_simbolo
         )
+
         avaliacao_estrategia = estrategia.get("avaliacao")
 
-        # Verificação pós-análise: se ainda assim não há estratégia definida, sugerir acompanhamento
         if not estrategia:
-            estrategia = {}  # para evitar erro no .get()
+            estrategia = {}
             tipo_estrategia = "neutro"
             contexto = "acompanhamento"
             estrategia_msg = gerar_explicacao_estrategia(
@@ -739,46 +895,30 @@ def previsao_custom():
                 media_ponderada=media_ponderada,
                 fibonacci=fibonacci,
                 microtendencia=microtendencia,
-                tendencia_combinada=analise_combinada.get("tendencia_combinada", "")
+                tendencia_combinada=analise_combinada.get("tendencia_combinada", ""),
+                moeda=moeda_simbolo
             )
             avaliacao_estrategia = "Acompanhar movimentação técnica com atenção aos gatilhos."
 
-        # Mantendo a Conclusão Geral (Neutra)
-        if rsi > 60:
-            conclusao_final = (
-                "📉 **Cenário técnico sugere cautela:** O ativo encontra-se em região de sobrecompra, indicando possível correção. "
-                "Usuários com viés comprador devem ter cuidado com novas entradas e considerar realização parcial dos lucros."
-        )
-        elif rsi < 40:
-            conclusao_final = (
-                "📈 **Oportunidade técnica observada:** O ativo encontra-se em região de sobrevenda, podendo sinalizar potencial recuperação. "
-                "Usuários com viés vendedor devem reconsiderar posições abertas, enquanto compradores podem acompanhar o surgimento de gatilhos claros."
-            )
-        else:
-            conclusao_final = (
-                "🔍 **Cenário equilibrado:** O ativo não demonstra sinais técnicos extremos claros (sobrecompra ou sobrevenda). "
-                "Indicado acompanhamento próximo para confirmar tendência e direção do mercado."
-            )
-       
-        # 🔒 Garantir consistência da capitalização
-        tipo_estrategia = tipo_estrategia.lower()
+        # consistência
+        tipo_estrategia = (tipo_estrategia or "neutro").lower()
 
-        print(">>> tipo_estrategia:", tipo_estrategia)
-        print(">>> estrategia_msg:", estrategia_msg)
-        print(">>> avaliacao_estrategia:", avaliacao_estrategia)
-        
-        if 'fonte' not in locals():
+        if "fonte" not in locals():
             fonte = "desconhecida"
-        if 'intervalo_utilizado' not in locals():
+        if "intervalo_utilizado" not in locals():
             intervalo_utilizado = intervalo_api
 
+        # ============================
+        # 5) FLUXO DE ORDENS
+        # ============================
         from utils.db import obter_fluxo_ordens
-
         dados_fluxo_intraday = obter_fluxo_ordens(ticker, limite=50)
-        
-        # Cálculo da pressão do mercado com base no fluxo intradiário
-        compras = dados_fluxo_intraday[dados_fluxo_intraday['side'] == 'Compra']['quantity'].sum()
-        vendas = dados_fluxo_intraday[dados_fluxo_intraday['side'] == 'Venda']['quantity'].sum()
+
+        compras = 0.0
+        vendas = 0.0
+        if not dados_fluxo_intraday.empty and "side" in dados_fluxo_intraday.columns and "quantity" in dados_fluxo_intraday.columns:
+            compras = dados_fluxo_intraday[dados_fluxo_intraday["side"] == "Compra"]["quantity"].sum()
+            vendas = dados_fluxo_intraday[dados_fluxo_intraday["side"] == "Venda"]["quantity"].sum()
 
         if compras > vendas * 1.1:
             pressao = "compradora"
@@ -787,52 +927,77 @@ def previsao_custom():
         else:
             pressao = "neutra"
 
-        # Conversão final para dict (para template)
-        dados_fluxo_intraday_dict = dados_fluxo_intraday.to_dict(orient='records')
+        dados_fluxo_intraday_dict = dados_fluxo_intraday.to_dict(orient="records") if not dados_fluxo_intraday.empty else []
 
-        return render_template("relatorio_custom.html",
-            ticker=ticker, periodo=periodo,
-            datahora=datetime.now().strftime('%d/%m/%Y %H:%M'),
-            rsi=rsi, sma20=sma20, sma50=sma50,
-            upper_band=upper_band, lower_band=lower_band,
+        # ============================
+        # 6) RENDER
+        # ============================
+        return render_template(
+            "relatorio_custom.html",
+            ticker=ticker,
+            periodo=periodo,
+            datahora=datetime.now().strftime("%d/%m/%Y %H:%M"),
+
+            rsi=rsi,
+            sma20=sma20,
+            sma50=sma50,
+            upper_band=upper_band,
+            lower_band=lower_band,
             volume_medio=volume_medio,
-            grafico=gerar_grafico(indicadores, ticker, modo='html'),
-            previsao=previsao[['ds', 'yhat']].tail().to_dict(orient='records'),
+
+            grafico=gerar_grafico(indicadores, ticker, modo="html"),
+            previsao=previsao[["ds", "yhat"]].tail().to_dict(orient="records") if previsao is not None else [],
             previsoes_lstm=previsoes_lstm,
             cenarios=Markup(cenarios_html),
-            fibonacci=fibonacci,
+
+            # Fibonacci decisório
+            fibonacci=fibonacci or {},
+            comentario_fibonacci=comentario_fibonacci,
+            fibo_confluencia=fibo_confluencia,
+            fibo_nivel=fibo_nivel,
+            fibo_tipo=fibo_tipo,
+
             insights_tecnicos=insights_tecnicos,
             tendencia_combinada=analise_combinada.get("tendencia_combinada", ""),
             tipo=analise_combinada.get("tipo", ""),
+            leitura_mh_curta=analise_combinada.get("leitura_mh_curta", ""),
+            direcao_lstm=analise_combinada.get("direcao_lstm", ""),
+            direcao_prophet=analise_combinada.get("direcao_prophet", ""),
+
             preco_entrada=preco_atual,
             microtendencia=microtendencia,
             media_ponderada=media_ponderada,
-            comentario_fibonacci=comentario_fibonacci,
+            leitura_multihorizonte=leitura_multihorizonte,
+
             explicacao_estrategia=estrategia_msg,
             tipo_estrategia=tipo_estrategia,
             avaliacao_estrategia=avaliacao_estrategia,
             grau_confianca=grau_confiança,
+
             tp_sugerido=tp_sugerido,
             sl_sugerido=sl_sugerido,
-            moeda = "US$" if "-USD" in ticker else "R$",
             tp1=seguro_float(estrategia.get("tp1")),
             tp2=seguro_float(estrategia.get("tp2")),
             tp3=seguro_float(estrategia.get("tp3")),
             sl=seguro_float(estrategia.get("sl")),
+
+            moeda=moeda_simbolo,
             mensagem_intervalo=mensagem_intervalo,
             conclusao_final=conclusao_final,
             analise=analise.get("indicadores", ""),
             aviso=analise.get("aviso", ""),
+
             limite_minimo=session.get("limite_minimo", 0),
             limite_maximo=session.get("limite_maximo", 0),
             ajuste_prophet=session.get("ajuste_prophet", False),
             alerta_estabilidade=session.get("alerta_estabilidade", False),
             ia_falhou=session.get("ia_falhou", False),
+
             modo="html",
             fonte=fonte,
             intervalo_utilizado=intervalo_utilizado,
             dados_fluxo_intraday=dados_fluxo_intraday_dict,
-            pressao=pressao 
+            pressao=pressao
         )
 
     except Exception as e:
@@ -865,63 +1030,6 @@ def analise_json():
     except Exception as e:
         erro_logger.error(f"Erro em /analise_json para {ticker}: {str(e)}")
         return jsonify({"erro": str(e)}), 500
-
-def analisar_modelos_combinados(previsoes_lstm, previsoes_prophet):
-    """
-    Compara as previsões dos modelos LSTM e Prophet para identificar convergência, divergência
-    e gerar uma média ponderada de tendência.
-    """
-    if not previsoes_lstm or not previsoes_prophet:
-        return {
-            "tendencia_combinada": "Indefinida",
-            "tipo": "Dados insuficientes",
-            "media_ponderada": None
-        }
-
-    # Últimas previsões
-    lstm_vals = [float(p["valor"]) for p in previsoes_lstm[-3:]]
-    prophet_vals = [float(p["yhat"]) for p in previsoes_prophet[-3:]]
-
-    # Médias
-    media_lstm = sum(lstm_vals) / len(lstm_vals)
-    media_prophet = sum(prophet_vals) / len(prophet_vals)
-
-    # Média ponderada (ajustável)
-    media_ponderada = round((0.6 * media_lstm + 0.4 * media_prophet), 2)
-
-    # Classificação da tendência
-    if media_lstm > lstm_vals[0] and media_prophet > prophet_vals[0]:
-        tipo = "Convergente de alta"
-    elif media_lstm < lstm_vals[0] and media_prophet < prophet_vals[0]:
-        tipo = "Convergente de baixa"
-    else:
-        tipo = "Divergente"
-
-    return {
-        "tendencia_combinada": f"📈 {tipo}" if 'alta' in tipo else f"📉 {tipo}",
-        "tipo": tipo,
-        "media_ponderada": media_ponderada
-    }
-
-def interpretar_convergencia_com_fibonacci(media_ponderada, fibonacci):
-    """
-    Compara a média ponderada com os níveis de Fibonacci.
-    Protege contra valores None e tipos inválidos.
-    """
-
-    # Proteção para media_ponderada
-    if media_ponderada is None or not isinstance(media_ponderada, (int, float)):
-        return "Valor inválido para análise com Fibonacci"
-
-    for nivel, preco in fibonacci.items():
-        if preco is None or not isinstance(preco, (int, float)):
-            print(f"[DEBUG] Nível {nivel} ignorado: preço inválido ({preco})")
-            continue  # Ignora este nível inválido
-
-        if abs(media_ponderada - preco) <= 0.5:
-            return f"Coincide com o nível de Fibonacci {nivel} (R$ {preco:.2f}) – possível suporte ou resistência importante"
-
-    return "Fora de zonas críticas de Fibonacci"
 
 @app.route('/exportar_pdf')
 def exportar_pdf():

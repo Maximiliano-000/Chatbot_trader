@@ -1,5 +1,12 @@
 # pyright: reportMissingImports=false
 import os
+from dotenv import load_dotenv
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ENV_PATH = os.path.join(BASE_DIR, ".env")
+
+load_dotenv(dotenv_path=ENV_PATH, override=True)
+
 import numpy as np
 import pandas as pd
 import time

@@ -29,7 +29,7 @@ weasyprint==53.0
 
 # === Machine Learning (⚠️ instale scikit-learn via conda) ===
 # conda install scikit-learn
-# scikit-learn==1.3.2
+# scikit-learn==1.6.1
 
 # === TensorFlow para Mac M1/M2 ===
 # Instale manualmente com:

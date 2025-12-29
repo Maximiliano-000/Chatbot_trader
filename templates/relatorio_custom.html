@@ -6,6 +6,9 @@
   <title>AnaliZ – Previsão {{ periodo.upper() }}</title>
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
   <link rel="icon" href="{{ url_for('static', filename='icon.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon-180.png') }}">
+  <link rel="apple-touch-icon-precomposed" href="{{ url_for('static', filename='apple-touch-icon-512.png') }}">
+  <meta name="theme-color" content="#0f0f10">
   <meta name="theme-color" content="#0f0f10">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
@@ -196,7 +199,7 @@
         {% if previsao %}
         {% for item in previsao %}
         <p style="color: #e0e0e0;">
-          <strong>{{ item.ds }}</strong>: R$ {{ "%.2f"|format(item.yhat) }}
+          <strong>{{ item.ds }}</strong>: {{ moeda }} {{ "%.2f"|format(item.yhat) }}
         </p>
         {% endfor %}
         {% else %}
@@ -206,11 +209,13 @@
     </div>
 
     <h3>🔹 Níveis de Retração de Fibonacci</h3>
+
+{% if fibonacci is defined and fibonacci %}
 <table>
   <thead>
     <tr>
       <th>Nível</th>
-      <th>Preço (R$)</th>
+      <th>Preço ({{ moeda if moeda else "R$" }})</th>
       <th>Comentário</th>
     </tr>
   </thead>
@@ -218,7 +223,7 @@
     {% for nivel, preco in fibonacci.items() %}
     <tr>
       <td>{{ nivel }}</td>
-      <td>R$ {{ "%.2f" | format(preco) }}</td>
+      <td>{{ moeda if moeda else "R$" }} {{ "%.2f" | format(preco) }}</td>
       <td>
         {% if nivel == '0.0%' %}
           Topo recente. Se ultrapassado, sinaliza força de alta.
@@ -238,6 +243,11 @@
     {% endfor %}
   </tbody>
 </table>
+{% else %}
+  <div class="card" style="border-left: 4px solid #9ca3af; background:#1f2937;">
+    <p style="margin:0; color:#cbd5e1;">⚠️ Níveis de Fibonacci indisponíveis para este ativo/período.</p>
+  </div>
+{% endif %}
 
 <h2 style="color: #ffffff;">📊 Análise Combinada LSTM + Prophet</h2>
 <div class="card" style="background-color: #111827; padding: 16px; border-radius: 12px; margin-top: 10px; color: #e5e7eb;">
@@ -262,6 +272,27 @@
     <span title="A convergência indica o grau de alinhamento entre os modelos LSTM e Prophet. Quando divergente, os modelos apontam caminhos distintos." style="cursor: help;">🛈</span>
   </p>
 
+  {% if leitura_mh_curta %}
+    <div style="
+      margin-top: 12px;
+      background: rgba(255,255,255,0.05);
+      padding: 14px 16px;
+      border-radius: 12px;
+      color: #e5e7eb;
+      line-height: 1.6;
+      border-left: 4px solid #38bdf8;
+    ">
+      🔍 <strong>Leitura Multi-Horizonte (LSTM × Prophet)</strong><br>
+      <span style="color:#cbd5f5;">
+        Curto prazo: <strong>{{ direcao_lstm }}</strong> (timing).  
+        Estrutura: <strong>{{ direcao_prophet }}</strong> (contexto).
+      </span><br><br>
+      ⚖️ <strong>Interpretação:</strong> não há conflito entre modelos, mas diferença de horizonte temporal.<br>
+      🎯 <strong>Implicação operacional:</strong> apenas trades curtos, seletivos, com confirmação técnica e alvos moderados.  
+      Operações direcionais exigem confirmação estrutural futura.
+    </div>
+  {% endif %}
+
   {% if microtendencia %}
     {% set classe_micro =
       'alta' if 'alta' in microtendencia else
@@ -271,17 +302,6 @@
       ⏩ <strong>Microtendência:</strong> {{ microtendencia }}
     </div>
   {% endif %}
-
-    <p style="font-size: 1.2em; line-height: 1.6;">
-      {% if "alta" in microtendencia %}
-        📈 <strong>Microtendência:</strong> {{ microtendencia }}
-      {% elif "queda" in microtendencia %}
-        📉 <strong>Microtendência:</strong> {{ microtendencia }}
-      {% else %}
-        🔁 <strong>Microtendência:</strong> {{ microtendencia }}
-      {% endif %}
-    </p>
-  </div>
 
   {% if "Coincide" in comentario_fibonacci %}
     <div style="background-color: #facc15; color: #111827; padding: 10px 14px; border-radius: 10px; margin-top: 10px; font-weight: 600;">
@@ -296,16 +316,22 @@
 </div>
 
 <div class="section">
-  {% if media_ponderada is not none %}
-    {% for nivel, preco in fibonacci.items() %}
-      {% if preco is not none and media_ponderada >= preco - 0.5 and media_ponderada <= preco + 0.5 %}
-        <p style="color: #29b6f6; margin-top: 10px;">
-          📍 A média ponderada coincide com o nível de <strong>{{ nivel }}</strong> de Fibonacci (R$ {{ '%.2f' | format(preco) }}).
-          Isso pode indicar uma região de suporte ou resistência técnica.
-        </p>
-      {% endif %}
-    {% endfor %}
-  {% endif %}
+  <h2>🧬 Fibonacci – Leitura Decisória</h2>
+  <div class="card">
+    {% if fibo_confluencia %}
+      <div style="background-color: #facc15; color: #111827; padding: 10px 14px; border-radius: 10px; font-weight: 700;">
+        ⚠️ Confluência detectada: {{ comentario_fibonacci }}
+      </div>
+      <p style="margin-top: 10px; color: #e5e7eb;">
+        <strong>Nível:</strong> {{ fibo_nivel or "–" }} |
+        <strong>Tipo:</strong> {{ fibo_tipo or "–" }}
+      </p>
+    {% else %}
+      <p style="color: #22d3ee; font-style: italic; margin: 0;">
+        🧭 {{ comentario_fibonacci }}
+      </p>
+    {% endif %}
+  </div>
 </div>
 
     <div class="section">
@@ -410,10 +436,6 @@
       </div>
     {% endif %}
 
-<footer>
-  {{ aviso }}<br><br><strong>Powered by AnaliZ</strong>
-</footer>
-
 <div class="section">
   <h2>📊 Fluxo de Ordens Intradiário</h2>
   <table class="table table-striped table-dark">
@@ -454,6 +476,10 @@
     <p style="color: #9ca3af; font-size:1.1em;">⚪️ Pressão <strong>neutra</strong> ou equilibrada no momento.</p>
   {% endif %}
 </div>
+
+<footer>
+  {{ aviso }}<br><br><strong>Powered by AnaliZ</strong>
+</footer>
 
 </body>
 </html>
